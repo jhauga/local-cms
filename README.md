@@ -1,5 +1,7 @@
 # Local CMS
 
+`Ctrl + click` to view [built example](https://jhauga.github.io/local-cms/).
+
 Local CMS is a simple PHP 8.2 content management scaffold designed around two constraints:
 
 - keep the application small enough to run without framework dependencies
