@@ -1,0 +1,86 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "version": 3,
+  "settings": {
+    "appearanceTools": true,
+    "color": {
+      "defaultPalette": false,
+      "defaultGradients": false,
+      "palette": [
+        {
+          "slug": "page-bg",
+          "name": "Page Background",
+          "color": "#edf3f5"
+        },
+        {
+          "slug": "panel-bg",
+          "name": "Panel Background",
+          "color": "#f9fbfb"
+        },
+        {
+          "slug": "text-main",
+          "name": "Text Main",
+          "color": "#1e2d33"
+        },
+        {
+          "slug": "text-muted",
+          "name": "Text Muted",
+          "color": "#5f737c"
+        },
+        {
+          "slug": "accent",
+          "name": "Accent",
+          "color": "#bb6d49"
+        }
+      ]
+    },
+    "layout": {
+      "contentSize": "760px",
+      "wideSize": "1160px"
+    },
+    "spacing": {
+      "units": [
+        "px",
+        "rem",
+        "%",
+        "vw"
+      ]
+    },
+    "typography": {
+      "defaultFontSizes": false,
+      "fontFamilies": [
+        {
+          "fontFamily": "\"Trebuchet MS\", \"Lucida Sans Unicode\", sans-serif",
+          "name": "Interface Sans",
+          "slug": "interface-sans"
+        },
+        {
+          "fontFamily": "Georgia, \"Times New Roman\", serif",
+          "name": "Editorial Serif",
+          "slug": "editorial-serif"
+        }
+      ]
+    }
+  },
+  "styles": {
+    "color": {
+      "background": "#edf3f5",
+      "text": "#1e2d33"
+    },
+    "typography": {
+      "fontFamily": "var:preset|font-family|interface-sans"
+    },
+    "elements": {
+      "heading": {
+        "typography": {
+          "fontFamily": "var:preset|font-family|editorial-serif"
+        }
+      },
+      "button": {
+        "border": {
+          "radius": "999px"
+        }
+      }
+    }
+  }
+}
