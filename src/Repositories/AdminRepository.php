@@ -35,6 +35,22 @@ final class AdminRepository
         return is_array($row) ? $row : null;
     }
 
+    public function findDefaultUser(): ?array
+    {
+        $adminUser = $this->findUserByEmail('admin@example.com');
+
+        if ($adminUser !== null) {
+            return $adminUser;
+        }
+
+        $statement = $this->connection->query(
+            'SELECT id, email, password_hash, display_name FROM users ORDER BY id ASC LIMIT 1'
+        );
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
     public function getSettings(): array
     {
         $statement = $this->connection->query('SELECT key, value FROM settings ORDER BY key ASC');
@@ -87,6 +103,7 @@ final class AdminRepository
                 c.status,
                 c.published_at,
                 c.updated_at,
+                c.markdown_math,
                 COALESCE(u.display_name, 'Admin') AS author_name,
                 " . $this->selectContentExtras($type) . "
              FROM {$table} c
@@ -118,6 +135,7 @@ final class AdminRepository
                 c.status,
                 c.published_at,
                 c.meta_title,
+                c.markdown_math,
                 c.meta_description,
                 c.featured_image,
                 c.author_id,
@@ -150,6 +168,8 @@ final class AdminRepository
                             title,
                             excerpt,
                             body_markdown,
+                            markdown_math,
+                            use_marked,
                             status,
                             published_at,
                             author_id,
@@ -163,6 +183,8 @@ final class AdminRepository
                             :title,
                             :excerpt,
                             :body_markdown,
+                            :markdown_math,
+                            :use_marked,
                             :status,
                             :published_at,
                             :author_id,
@@ -180,6 +202,8 @@ final class AdminRepository
                             title,
                             excerpt,
                             body_markdown,
+                            markdown_math,
+                            use_marked,
                             status,
                             published_at,
                             author_id,
@@ -191,6 +215,8 @@ final class AdminRepository
                             :title,
                             :excerpt,
                             :body_markdown,
+                            :markdown_math,
+                            :use_marked,
                             :status,
                             :published_at,
                             :author_id,
@@ -211,6 +237,8 @@ final class AdminRepository
                              title = :title,
                              excerpt = :excerpt,
                              body_markdown = :body_markdown,
+                             markdown_math = :markdown_math,
+                             use_marked = :use_marked,
                              status = :status,
                              published_at = :published_at,
                              author_id = :author_id,
@@ -229,6 +257,8 @@ final class AdminRepository
                              title = :title,
                              excerpt = :excerpt,
                              body_markdown = :body_markdown,
+                             markdown_math = :markdown_math,
+                             use_marked = :use_marked,
                              status = :status,
                              published_at = :published_at,
                              author_id = :author_id,
@@ -422,6 +452,8 @@ final class AdminRepository
     private function hydrateContentRow(array $row, string $type): array
     {
         $row['content_type'] = $type;
+        $row['markdown_math'] = !empty($row['markdown_math']);
+        $row['use_marked'] = !empty($row['use_marked']);
         $row['sort_order'] = (int) ($row['sort_order'] ?? 0);
         $row['term_ids'] = [];
         $terms = $this->termsForContent($type, (int) $row['id']);
@@ -516,6 +548,8 @@ final class AdminRepository
             'title' => $data['title'],
             'excerpt' => $data['excerpt'],
             'body_markdown' => $data['body_markdown'],
+            'markdown_math' => !empty($data['markdown_math']) ? 1 : 0,
+            'use_marked' => !empty($data['use_marked']) ? 1 : 0,
             'status' => $data['status'],
             'published_at' => $data['published_at'],
             'author_id' => $data['author_id'],
@@ -535,8 +569,8 @@ final class AdminRepository
     private function selectContentExtras(string $type): string
     {
         return match ($type) {
-            'page' => "c.template, c.sort_order, c.meta_title, c.meta_description, c.featured_image",
-            'post' => "'single' AS template, 0 AS sort_order, c.meta_title, c.meta_description, c.featured_image",
+            'page' => "c.template, c.sort_order, c.meta_title, c.meta_description, c.featured_image, c.markdown_math, c.use_marked",
+            'post' => "'single' AS template, 0 AS sort_order, c.meta_title, c.meta_description, c.featured_image, c.markdown_math, c.use_marked",
             default => throw new InvalidArgumentException('Unsupported content type.'),
         };
     }

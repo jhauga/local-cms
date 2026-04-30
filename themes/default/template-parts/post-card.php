@@ -13,7 +13,7 @@ $primaryCategory = localcms_primary_term($item, 'category');
     <a class="story-link-wrap" href="<?= esc_url(get_permalink($item)) ?>">
         <div class="story-art<?= has_post_thumbnail($item) ? ' has-image' : '' ?>">
             <?php if (has_post_thumbnail($item)): ?>
-                <img src="<?= esc_url(get_the_post_thumbnail_url($item)) ?>" alt="<?= esc_attr(get_the_title($item)) ?>">
+                <img src="<?= esc_url(get_the_post_thumbnail_url($item)) ?>" alt="<?= esc_attr(localcms_compact_markdown_text(get_the_title($item))) ?>">
             <?php else: ?>
                 <span class="story-art-label"><?= esc_html((string) ($primaryCategory['name'] ?? ucfirst(get_post_type($item)))) ?></span>
                 <span class="story-art-meta">Portable archive card</span>
@@ -27,7 +27,7 @@ $primaryCategory = localcms_primary_term($item, 'category');
                 <?php endif; ?>
                 <p class="story-meta"><?= esc_html((string) localcms_reading_minutes($item)) ?> min read</p>
             </div>
-            <h3 class="story-title"><?= esc_html(get_the_title($item)) ?></h3>
+            <h3 class="story-title"><?= localcms_render_compact_markdown(get_the_title($item)) ?></h3>
             <p class="story-excerpt"><?= esc_html(get_the_excerpt($item)) ?></p>
         </div>
     </a>

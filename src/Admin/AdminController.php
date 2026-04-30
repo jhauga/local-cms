@@ -10,6 +10,9 @@ use Cms\Repositories\AdminRepository;
 use Cms\Security\Auth;
 use Cms\Security\Csrf;
 use Cms\Security\Session;
+use Cms\Support\Markdown;
+use Cms\Support\MarkdownTemplateCatalog;
+use Cms\Support\Uploads;
 use DateTimeImmutable;
 
 final class AdminController
@@ -24,69 +27,47 @@ final class AdminController
 
     public function home(Request $request): Response
     {
-        if (!$this->auth->check()) {
-            return Response::redirect('/admin/login');
-        }
-
         return $this->dashboard($request);
     }
 
     public function showLogin(Request $request): Response
     {
-        if ($this->auth->check()) {
-            return Response::redirect('/admin');
-        }
+        Session::flash('notice', 'Local admin mode does not require signing in.');
 
-        return $this->renderLogin();
+        return Response::redirect('/admin');
     }
 
     public function login(Request $request): Response
     {
-        if ($this->auth->check()) {
-            return Response::redirect('/admin');
-        }
-
-        if (!$this->validateCsrf($request)) {
-            return $this->renderLogin(['Invalid security token.'], ['email' => (string) $request->post('email', '')], 419);
-        }
-
-        $email = trim((string) $request->post('email', ''));
-        $password = (string) $request->post('password', '');
-        $errors = [];
-
-        if ($email === '') {
-            $errors[] = 'Email is required.';
-        }
-
-        if ($password === '') {
-            $errors[] = 'Password is required.';
-        }
-
-        if ($errors === [] && !$this->auth->attempt($email, $password)) {
-            $errors[] = 'The provided credentials are not valid.';
-        }
-
-        if ($errors !== []) {
-            return $this->renderLogin($errors, ['email' => $email], 422);
-        }
-
-        Session::flash('notice', 'Signed in successfully.');
+        Session::flash('notice', 'Local admin mode does not require signing in.');
 
         return Response::redirect('/admin');
     }
 
     public function logout(Request $request): Response
     {
-        if (!$this->validateCsrf($request)) {
-            Session::flash('error', 'Your session token expired. Sign in again.');
+        Session::flash('notice', 'Local admin mode stays available without signing in.');
 
-            return Response::redirect('/admin/login');
+        return Response::redirect('/admin');
+    }
+
+    public function previewMarkdown(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return new Response('<p class="preview-status is-error">Admin access is unavailable.</p>', 500);
         }
 
-        $this->auth->logout();
-        Session::flash('notice', 'Signed out.');
+        if (!$this->validateCsrf($request)) {
+            return new Response('<p class="preview-status is-error">Preview token expired. Refresh the editor and try again.</p>', 419);
+        }
 
-        return Response::redirect('/admin/login');
+        $markdown = trim((string) $request->post('body_markdown', ''));
+
+        if ($markdown === '') {
+            return new Response('<p class="preview-empty">Nothing to preview yet.</p>');
+        }
+
+        return new Response(Markdown::toHtml($markdown));
     }
 
     public function dashboard(Request $request): Response
@@ -151,6 +132,10 @@ final class AdminController
             return $this->renderContentForm($type, $payload, $errors, true, 422);
         }
 
+        if (($uploadError = $this->applyFeaturedImageUpload($request, $payload)) !== null) {
+            return $this->renderContentForm($type, $payload, [$uploadError], true, 422);
+        }
+
         $payload['author_id'] = (int) ($this->auth->user()['id'] ?? 0);
         $contentId = $this->repository->saveContent($type, $payload, $payload['term_ids']);
         Session::flash('notice', $this->labelForContent($type) . ' created.');
@@ -195,6 +180,10 @@ final class AdminController
 
         if ($errors !== []) {
             return $this->renderContentForm($type, array_merge($existing, $payload), $errors, false, 422);
+        }
+
+        if (($uploadError = $this->applyFeaturedImageUpload($request, $payload)) !== null) {
+            return $this->renderContentForm($type, array_merge($existing, $payload), [$uploadError], false, 422);
         }
 
         $payload['author_id'] = (int) ($this->auth->user()['id'] ?? 0);
@@ -398,33 +387,63 @@ final class AdminController
         return Response::redirect('/admin/settings');
     }
 
+    public function templatingForm(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $settings = $this->repository->getSettings();
+        $templates = MarkdownTemplateCatalog::decode((string) ($settings[MarkdownTemplateCatalog::SETTINGS_KEY] ?? ''));
+        $body = $this->view->render('templating', $this->templatingViewData($templates, []));
+
+        return new Response($body);
+    }
+
+    public function updateTemplating(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        [$templates, $errors] = $this->normalizeMarkdownTemplates($request);
+
+        if (!$this->validateCsrf($request)) {
+            $errors[] = 'Invalid security token.';
+        }
+
+        if ($errors !== []) {
+            $body = $this->view->render('templating', $this->templatingViewData($templates, $errors));
+
+            return new Response($body, 422);
+        }
+
+        $this->repository->updateSettings([
+            MarkdownTemplateCatalog::SETTINGS_KEY => MarkdownTemplateCatalog::encode($templates),
+        ]);
+
+        Session::flash('notice', 'Templating updated.');
+
+        return Response::redirect('/admin/templating');
+    }
+
     private function requireAuth(): ?Response
     {
         if ($this->auth->check()) {
             return null;
         }
 
-        Session::flash('error', 'Sign in to access the admin area.');
-
-        return Response::redirect('/admin/login');
+        return $this->messageResponse(
+            'Admin user unavailable',
+            'The local admin seed could not be resolved. Repair the users table or rerun database bootstrap.',
+            500,
+            'dashboard'
+        );
     }
 
     private function validateCsrf(Request $request): bool
     {
         return Csrf::validate($request->post('_token'));
-    }
-
-    private function renderLogin(array $errors = [], array $values = [], int $statusCode = 200): Response
-    {
-        $body = $this->view->render('login', $this->baseData([
-            'pageTitle' => 'Admin Login',
-            'currentSection' => 'login',
-            'errors' => $errors,
-            'values' => array_merge(['email' => 'admin@example.com'], $values),
-            'isGuestScreen' => true,
-        ]));
-
-        return new Response($body, $statusCode);
     }
 
     private function renderContentForm(string $type, array $item, array $errors, bool $isNew, int $statusCode = 200): Response
@@ -435,6 +454,7 @@ final class AdminController
             'currentSection' => $this->sectionForContent($type),
             'contentType' => $type,
             'contentLabel' => $label,
+            'markdownPreviewEnabled' => true,
             'item' => $item,
             'errors' => $errors,
             'isNew' => $isNew,
@@ -485,6 +505,8 @@ final class AdminController
             'slug' => $this->slugify($slug),
             'excerpt' => trim((string) $request->post('excerpt', '')),
             'body_markdown' => trim((string) $request->post('body_markdown', '')),
+            'markdown_math' => $request->post('markdown_math', '0') === '1',
+            'use_marked' => $request->post('use_marked', '0') === '1',
             'status' => in_array((string) $request->post('status', 'draft'), ['draft', 'published'], true) ? (string) $request->post('status', 'draft') : 'draft',
             'published_at' => $this->normalizeDateTime($publishedAt),
             'meta_title' => trim((string) $request->post('meta_title', '')),
@@ -546,6 +568,8 @@ final class AdminController
             'slug' => '',
             'excerpt' => '',
             'body_markdown' => '',
+            'markdown_math' => false,
+            'use_marked' => false,
             'status' => 'draft',
             'published_at' => null,
             'meta_title' => '',
@@ -557,6 +581,24 @@ final class AdminController
             'categories' => [],
             'tags' => [],
         ];
+    }
+
+    private function applyFeaturedImageUpload(Request $request, array &$payload): ?string
+    {
+        if (!$request->hasFile('featured_image_upload')) {
+            return null;
+        }
+
+        try {
+            $payload['featured_image'] = Uploads::storeImage(
+                $request->file('featured_image_upload'),
+                (array) $this->config->get('app.application.uploads', [])
+            );
+
+            return null;
+        } catch (\RuntimeException $exception) {
+            return $exception->getMessage();
+        }
     }
 
     private function normalizeTermInput(Request $request): array
@@ -643,10 +685,81 @@ final class AdminController
         return array_merge([
             'siteName' => (string) ($settings['site_name'] ?? $this->config->get('app.name', 'Local CMS')),
             'siteTagline' => (string) ($settings['site_tagline'] ?? $this->config->get('app.tagline', 'A simple content studio with WordPress-shaped theme templates.')),
+            'markdownTemplateMap' => MarkdownTemplateCatalog::mapFromSettings($settings),
             'authUser' => $this->auth->user(),
             'notice' => Session::pullFlash('notice'),
             'errorNotice' => Session::pullFlash('error'),
             'csrfToken' => Csrf::token(),
+            'clientConverterEnabled' => (bool) $this->config->get('app.application.content.clientConverter', false),
         ], $data);
+    }
+
+    private function templatingViewData(array $templates, array $errors): array
+    {
+        return $this->baseData([
+            'pageTitle' => 'Templating',
+            'currentSection' => 'templating',
+            'templates' => array_merge($templates, [['name' => '', 'markup' => '']]),
+            'errors' => $errors,
+        ]);
+    }
+
+    private function normalizeMarkdownTemplates(Request $request): array
+    {
+        $names = $request->post('template_names', []);
+        $markups = $request->post('template_markups', []);
+        $templates = [];
+        $errors = [];
+        $seenNames = [];
+
+        if (!is_array($names)) {
+            $names = [];
+        }
+
+        if (!is_array($markups)) {
+            $markups = [];
+        }
+
+        $rowCount = max(count($names), count($markups));
+
+        for ($index = 0; $index < $rowCount; $index += 1) {
+            $name = trim((string) ($names[$index] ?? ''));
+            $markup = trim((string) ($markups[$index] ?? ''));
+            $rowLabel = 'Template ' . ($index + 1);
+
+            if ($name === '' && $markup === '') {
+                continue;
+            }
+
+            if ($name === '') {
+                $errors[] = $rowLabel . ' is missing a name.';
+            }
+
+            if ($markup === '') {
+                $errors[] = $rowLabel . ' is missing its HTML snippet.';
+            }
+
+            if ($name !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $name) !== 1) {
+                $errors[] = $rowLabel . ' must use only letters, numbers, underscores, or hyphens.';
+            }
+
+            if ($name !== '' && isset($seenNames[$name])) {
+                $errors[] = $rowLabel . ' duplicates the template name "' . $name . '".';
+            }
+
+            if ($markup !== '' && strpos($markup, '{__markdown__}') === false) {
+                $errors[] = $rowLabel . ' must include the {__markdown__} placeholder.';
+            }
+
+            if ($name !== '' && $markup !== '' && !isset($seenNames[$name]) && preg_match('/^[A-Za-z0-9_-]+$/', $name) === 1) {
+                $seenNames[$name] = true;
+                $templates[] = [
+                    'name' => $name,
+                    'markup' => $markup,
+                ];
+            }
+        }
+
+        return [$templates, $errors];
     }
 }

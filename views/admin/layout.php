@@ -7,9 +7,11 @@ declare(strict_types=1);
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></title>
+    <link rel="icon" href="/uploads/admin-favicon.svg">
     <?php foreach ($stylesheets as $stylesheet): ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($stylesheet, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
     <?php endforeach; ?>
+    <script>window.LocalCmsMarkdownTemplates = <?= json_encode($markdownTemplateMap ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;</script>
 </head>
 <body class="admin-body">
     <div class="admin-shell">
@@ -20,11 +22,7 @@ declare(strict_types=1);
             </div>
             <?php if (!empty($authUser)): ?>
                 <div class="admin-userbox">
-                    <p>Signed in as <?= htmlspecialchars((string) $authUser['display_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-                    <form method="post" action="/admin/logout">
-                        <input type="hidden" name="_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-                        <button class="ghost-button" type="submit">Log out</button>
-                    </form>
+                    <p>Local author: <?= htmlspecialchars((string) $authUser['display_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
                 </div>
             <?php endif; ?>
         </header>
@@ -37,6 +35,7 @@ declare(strict_types=1);
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'pages' ? ' is-active' : '' ?>" href="/admin/pages">Pages</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'posts' ? ' is-active' : '' ?>" href="/admin/posts">Posts</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'taxonomies' ? ' is-active' : '' ?>" href="/admin/taxonomies">Taxonomies</a>
+                        <a class="admin-nav-link<?= ($currentSection ?? '') === 'templating' ? ' is-active' : '' ?>" href="/admin/templating">Templating</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'settings' ? ' is-active' : '' ?>" href="/admin/settings">Settings</a>
                         <a class="admin-nav-link" href="/" target="_blank" rel="noreferrer">Open site</a>
                     </nav>

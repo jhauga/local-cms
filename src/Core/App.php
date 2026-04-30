@@ -37,6 +37,11 @@ final class App
         $this->handle(Request::capture())->send();
     }
 
+    public function theme(): Theme
+    {
+        return $this->theme;
+    }
+
     private function notFound(Request $request): Response
     {
         $content = $this->theme->render(

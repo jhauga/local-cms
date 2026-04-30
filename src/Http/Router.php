@@ -60,6 +60,11 @@ final class Router
         $compiledSegments = [];
 
         foreach ($segments as $segment) {
+            if (preg_match('/^\{([A-Za-z_][A-Za-z0-9_]*)\*\}$/', $segment, $matches) === 1) {
+                $compiledSegments[] = '(?P<' . $matches[1] . '>.+)';
+                continue;
+            }
+
             if (preg_match('/^\{([A-Za-z_][A-Za-z0-9_]*)\}$/', $segment, $matches) === 1) {
                 $compiledSegments[] = '(?P<' . $matches[1] . '>[^/]+)';
                 continue;

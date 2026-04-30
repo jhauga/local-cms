@@ -68,6 +68,30 @@ final class ThemeRuntime
         return rtrim($basePath, '/') . '/' . ltrim($path, '/');
     }
 
+    public static function themeAssetUrl(string $path = ''): string
+    {
+        $basePath = (string) self::data('themeAssetBaseUrl', '/theme');
+        $basePath = $basePath === '' ? '/theme' : '/' . trim($basePath, '/');
+
+        if ($path === '') {
+            return $basePath;
+        }
+
+        return rtrim($basePath, '/') . '/' . ltrim($path, '/');
+    }
+
+    public static function themeMediaUrl(string $path = ''): string
+    {
+        $mediaDirectory = trim((string) self::data('themeMediaDirectory', 'img'), '/');
+        $mediaDirectory = $mediaDirectory !== '' ? $mediaDirectory : 'img';
+
+        if ($path === '') {
+            return self::themeAssetUrl($mediaDirectory);
+        }
+
+        return self::themeAssetUrl($mediaDirectory . '/' . ltrim($path, '/'));
+    }
+
     public static function includeHeader(?string $name = null, array $args = []): void
     {
         self::instance()->includeThemeFile('header', $name, $args);
@@ -145,6 +169,22 @@ final class ThemeRuntime
     {
         $current = self::currentItem($item);
 
+        if (self::currentItemUsesClientMarkdown($current)) {
+            $markdown = (string) ($current['body_markdown'] ?? '');
+
+            if ($markdown !== '') {
+                $attributes = ' data-markdown-body';
+
+                if (self::currentItemUsesMarkedRenderer($current)) {
+                    $attributes .= ' data-markdown-renderer="marked"';
+                }
+
+                return '<div' . $attributes . '>' . "\n"
+                    . htmlspecialchars($markdown, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                    . "\n" . '</div>';
+            }
+        }
+
         return (string) ($current['body_html'] ?? '');
     }
 
@@ -194,6 +234,78 @@ final class ThemeRuntime
         $current = self::currentItem($item);
 
         return (string) ($current['featured_image'] ?? '');
+    }
+
+    public static function currentItemUsesMarkdownMath(?array $item = null): bool
+    {
+        $current = self::currentItem($item);
+
+        return !empty($current['markdown_math']);
+    }
+
+    public static function currentItemUsesMarkedRenderer(?array $item = null): bool
+    {
+        $current = self::currentItem($item);
+
+        return !empty($current['use_marked']);
+    }
+
+    public static function currentItemUsesClientMarkdown(?array $item = null): bool
+    {
+        return self::clientConverterEnabled()
+            || self::currentItemUsesMarkedRenderer($item)
+            || self::currentItemUsesTemplateMarkdown($item);
+    }
+
+    public static function queryUsesClientMarkdown(): bool
+    {
+        if (self::clientConverterEnabled()) {
+            return true;
+        }
+
+        foreach (self::instance()->queryItems as $item) {
+            if (!empty($item['use_marked']) || self::itemUsesTemplateSyntax($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function hasCustomLogo(): bool
+    {
+        return (string) self::data('customLogoUrl', '') !== '';
+    }
+
+    public static function customLogoUrl(): string
+    {
+        return (string) self::data('customLogoUrl', '');
+    }
+
+    public static function clientConverterEnabled(): bool
+    {
+        return (bool) self::data('clientConverterEnabled', false);
+    }
+
+    private static function currentItemUsesTemplateMarkdown(?array $item = null): bool
+    {
+        return self::itemUsesTemplateSyntax(self::currentItem($item));
+    }
+
+    private static function itemUsesTemplateSyntax(?array $item): bool
+    {
+        if ($item === null || !self::hasMarkdownTemplates()) {
+            return false;
+        }
+
+        $markdown = (string) ($item['body_markdown'] ?? '');
+
+        return $markdown !== '' && preg_match('/<!--\s*html:(?:template=|begin)\b/i', $markdown) === 1;
+    }
+
+    private static function hasMarkdownTemplates(): bool
+    {
+        return self::data('markdownTemplateMap', []) !== [];
     }
 
     public static function getTerms(string $taxonomy, ?array $item = null): array

@@ -25,7 +25,10 @@ final class AdminView
         $viewData = array_merge([
             'pageTitle' => 'Admin',
             'siteName' => 'Local CMS',
-            'stylesheets' => ['/assets/admin.css'],
+            'stylesheets' => array_values(array_filter([
+                (!empty($data['clientConverterEnabled']) || !empty($data['markdownPreviewEnabled'])) ? '/assets/markdown.css' : null,
+                '/assets/admin.css',
+            ])),
         ], $data);
 
         ob_start();

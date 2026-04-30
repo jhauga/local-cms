@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Markdown Conversion Techniques</title>
+    <meta name="description" content="A short overview of the Local CMS markdown features that extend plain Markdown with comment-based syntax.">
+    <link rel="icon" href="/theme/img/favicon.svg">
+    <link rel="stylesheet" href="/theme/style.css">
+    <link rel="stylesheet" href="/assets/markdown.css">
+</head>
+<body class="localcms-theme view-single path-post-markdown-conversion-techniques single single-post post post-markdown-conversion-techniques">
+        <a class="skip-link" href="#content">Skip to content</a>
+    <div class="page-shell">
+        <div class="site-header-shell" data-site-header-shell>
+            <header class="site-header" data-site-header>
+                <div class="site-branding">
+                    <p class="site-kicker">WordPress-shaped theme</p>
+                    <a class="site-title" href="/">
+                                                    <img class="logo" src="/theme/img/logo.svg" alt="Local CMS">
+                                            </a>
+                    <p class="site-tagline">Simple publishing with WordPress-shaped theme templates.</p>
+                </div>
+                <nav class="site-nav" aria-label="Primary navigation">
+                                            <a
+                            class="nav-link"
+                            href="/"
+                        >
+                            Home                        </a>
+                                            <a
+                            class="nav-link is-active"
+                            href="/posts"
+                        >
+                            Posts                        </a>
+                                            <a
+                            class="nav-link"
+                            href="/page/about"
+                        >
+                            About                        </a>
+                                            <a
+                            class="nav-link"
+                            href="/page/editorial-workflow"
+                        >
+                            Workflow                        </a>
+                                            <a
+                            class="nav-link"
+                            href="/page/markdown-conversion"
+                        >
+                            <code>md</code> Conversion                        </a>
+                                    </nav>
+            </header>
+        </div>
+<main id="content" class="site-main narrow-layout">
+                    <article class="post entry-markdown-conversion-techniques status-published content-panel entry-shell">
+    <div class="entry-grid">
+        <div class="entry-main">
+            <aside class="entry-aside">
+                <div class="entry-figure">
+                                            <span class="entry-figure-kicker">Writing Workflow</span>
+                        <strong>Markdown Conversion Techniques</strong>
+                        <span>Portable single template</span>
+                                    </div>
+
+                <div class="entry-side-card">
+                    <p class="hero-card-label">Compatibility notes</p>
+                    <ul class="feature-list compact-list">
+                        <li>Uses get_header() and get_footer()</li>
+                        <li>Uses shared template parts for terms and entries</li>
+                        <li>Uses body_class() and post_class() hooks</li>
+                    </ul>
+                </div>
+            </aside>
+
+            <p class="eyebrow">Post</p>
+            <h1>Markdown Conversion Techniques</h1>
+            <div class="meta-row">
+                                    <p class="story-meta">Apr 30, 2026</p>
+                                <p class="story-meta">By Admin</p>
+                <p class="story-meta">2 min read</p>
+            </div>
+
+                            <p class="lead">A post about the Local CMS markdown features that go beyond plain Markdown.</p>
+            
+            <div class="term-list">
+            <a class="term-pill is-category" href="/category/writing-workflow">
+            Writing Workflow        </a>
+                <a class="term-pill" href="/tag/markdown">
+            #Markdown        </a>
+            <a class="term-pill" href="/tag/content-model">
+            #Content Model        </a>
+    </div>
+            <div class="prose">
+                <div data-markdown-body>
+# Markdown Conversion Techniques
+
+Local CMS ships with a default browser-side converter that does more than plain Markdown. It keeps authored content portable, but it also understands comment-driven extras that work well for tutorials, notes, and documentation.
+
+## What is unique here
+
+- end-of-line comment attributes can decorate headings, links, images, and list items
+- comment-only lines can attach attributes to the next block element
+- alerts, task lists, tables, footnotes, and MathJax-friendly placeholders work without a package install
+- `&lt;!-- html:begin --&gt;` wrappers and `&lt;!-- html:template=name --&gt;` templates add layout structure without dropping into full raw HTML
+
+&gt; [!TIP]
+&gt; Use the built-in converter when you need Local CMS specific syntax. Use the `marked.js` toggle when the page needs a richer general Markdown pass.
+
+## A compact example
+
+&lt;!-- html:template=rule --&gt;
+### Comment wrappers stay readable
+One template comment can wrap a short section without turning the body copy into a wall of raw HTML.
+You can still add attributes to a [converter link](/assets/convert.js &quot;Converter source&quot;)&lt;!-- target=&quot;_blank&quot; rel=&quot;noopener&quot; --&gt; and send readers to the full [Markdown Conversion](/page/markdown-conversion) reference page.
+
+## Why this matters
+
+Writers can stay in Markdown, editors can keep a consistent pattern library, and the theme still receives clean rendered HTML.
+</div>            </div>
+        </div>
+    </div>
+</article>            </main>
+        <footer class="site-footer">
+            <div class="footer-copy">
+                <p class="footer-heading">Built to migrate cleanly.</p>
+                <p>Template parts, body classes, and compatibility tags now mirror the next WordPress extraction step.</p>
+            </div>
+            <nav class="footer-nav" aria-label="Footer navigation">
+                                    <a class="footer-link" href="/">Home</a>
+                                    <a class="footer-link" href="/posts">Posts</a>
+                                    <a class="footer-link" href="/page/about">About</a>
+                                    <a class="footer-link" href="/page/editorial-workflow">Workflow</a>
+                                    <a class="footer-link" href="/page/markdown-conversion"><code>md</code> Conversion</a>
+                            </nav>
+            <p class="footer-meta">&copy; 2026 Local CMS</p>
+        </footer>
+    </div>
+    <script>window.LocalCmsMarkdownTemplates = {"interactive":"\u003C!-- html:begin --\u003E\n\u003C!-- section.interactive-template --\u003E\n{__markdown__}\n\u003C!-- div.template-overlay --\u003E \u003C!-- strong --\u003E \u003C!-- Interactive template --\u003E\n\u003C!-- html:end --\u003E","rule":"\u003C!-- html:begin --\u003E\n\u003C!-- section.rule-wrapper --\u003E\n{__markdown__}\n\u003C!-- div.rule-accent --\u003E \u003C!-- span.rule-label --\u003E \u003C!-- Rule template --\u003E\n\u003C!-- html:end --\u003E"};</script>
+<script src="/assets/convert.js"></script>
+    <script>
+    (() => {
+        const shell = document.querySelector('[data-site-header-shell]');
+        const header = document.querySelector('[data-site-header]');
+
+        if (!shell || !header) {
+            return;
+        }
+
+        const desktopQuery = window.matchMedia('(min-width: 901px)');
+        const threshold = 100;
+        let ticking = false;
+
+        const syncShellHeight = () => {
+            shell.style.height = `${header.offsetHeight}px`;
+        };
+
+        const updateHeaderState = () => {
+            const shouldFix = desktopQuery.matches && window.scrollY > threshold;
+
+            header.classList.toggle('is-fixed', shouldFix);
+            document.body.classList.toggle('has-fixed-header', shouldFix);
+            syncShellHeight();
+        };
+
+        const queueUpdate = () => {
+            if (ticking) {
+                return;
+            }
+
+            ticking = true;
+            window.requestAnimationFrame(() => {
+                updateHeaderState();
+                ticking = false;
+            });
+        };
+
+        if (typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncShellHeight).observe(header);
+        }
+
+        if (typeof desktopQuery.addEventListener === 'function') {
+            desktopQuery.addEventListener('change', queueUpdate);
+        } else if (typeof desktopQuery.addListener === 'function') {
+            desktopQuery.addListener(queueUpdate);
+        }
+
+        window.addEventListener('scroll', queueUpdate, { passive: true });
+        window.addEventListener('resize', queueUpdate);
+        updateHeaderState();
+    })();
+    </script>
+</body>
+</html>

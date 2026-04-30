@@ -7,6 +7,28 @@ final class Markdown
 {
     private static bool $vendorLoaded = false;
 
+    public static function toCompactInlineHtml(string $text): string
+    {
+        $text = preg_replace('/\s+/u', ' ', str_replace(["\r\n", "\n", "\r"], ' ', $text)) ?? $text;
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        return self::parseCompactInlineHtml($text);
+    }
+
+    public static function toCompactInlineText(string $text): string
+    {
+        $html = self::toCompactInlineHtml($text);
+        $plain = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $plain = preg_replace('/\s+/u', ' ', $plain) ?? $plain;
+
+        return trim($plain);
+    }
+
     public static function toHtml(string $markdown): string
     {
         $markdown = self::normalize($markdown);
@@ -263,6 +285,18 @@ final class Markdown
             return self::storePlaceholder($placeholders, '<code>' . $matches[1] . '</code>');
         }, $text) ?? $text;
 
+        $text = preg_replace_callback('/!\[([^\]]*)\]\(([^)]+)\)/', static function (array $matches) use (&$placeholders): string {
+            $src = html_entity_decode($matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+            if (!self::isSafeHref($src)) {
+                return '';
+            }
+
+            $html = '<img src="' . htmlspecialchars($src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="' . $matches[1] . '">';
+
+            return self::storePlaceholder($placeholders, $html);
+        }, $text) ?? $text;
+
         $text = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', static function (array $matches) use (&$placeholders): string {
             $href = html_entity_decode($matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
@@ -280,6 +314,43 @@ final class Markdown
             '/__([^_]+)__/' => '<strong>$1</strong>',
             '/(?<!\*)\*([^*]+)\*(?!\*)/' => '<em>$1</em>',
             '/(?<!_)_([^_]+)_(?!_)/' => '<em>$1</em>',
+        ];
+
+        foreach ($patterns as $pattern => $replacement) {
+            $text = preg_replace($pattern, $replacement, $text) ?? $text;
+        }
+
+        return strtr($text, $placeholders);
+    }
+
+    private static function parseCompactInlineHtml(string $text): string
+    {
+        $placeholders = [];
+
+        $text = preg_replace_callback('/<(sub|sup|ins)>(.*?)<\/\1>/is', static function (array $matches) use (&$placeholders): string {
+            $tag = strtolower($matches[1]);
+            $html = '<' . $tag . '>' . self::parseCompactInlineHtml($matches[2]) . '</' . $tag . '>';
+
+            return self::storePlaceholder($placeholders, $html);
+        }, $text) ?? $text;
+
+        $text = preg_replace_callback('/`([^`\n]+)`/', static function (array $matches) use (&$placeholders): string {
+            $html = '<code>' . htmlspecialchars($matches[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code>';
+
+            return self::storePlaceholder($placeholders, $html);
+        }, $text) ?? $text;
+
+        $text = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $patterns = [
+            '/\*\*\*([^*][\s\S]*?)\*\*\*/' => '<strong><em>$1</em></strong>',
+            '/___([^_][\s\S]*?)___/' => '<strong><em>$1</em></strong>',
+            '/\*\*([^*][\s\S]*?)\*\*/' => '<strong>$1</strong>',
+            '/__([^_][\s\S]*?)__/' => '<strong>$1</strong>',
+            '/~~([^~][\s\S]*?)~~/' => '<del>$1</del>',
+            '/~([^~][^~]*?)~/' => '<del>$1</del>',
+            '/(?<!\*)\*([^*\n]+)\*(?!\*)/' => '<em>$1</em>',
+            '/(?<!_)_([^_\n]+)_(?!_)/' => '<em>$1</em>',
         ];
 
         foreach ($patterns as $pattern => $replacement) {

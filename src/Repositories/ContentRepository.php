@@ -38,6 +38,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.template,
+                p.markdown_math,
+                p.use_marked,
                 p.meta_title,
                 p.meta_description,
                 p.featured_image,
@@ -65,6 +67,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.meta_title,
+                p.markdown_math,
+                 p.use_marked,
                 p.meta_description,
                 p.featured_image,
                      COALESCE(u.display_name, 'Editorial Team') AS author_name
@@ -93,6 +97,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.meta_title,
+                p.markdown_math,
+                 p.use_marked,
                 p.meta_description,
                 p.featured_image,
                      COALESCE(u.display_name, 'Editorial Team') AS author_name
@@ -176,6 +182,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.meta_title,
+                p.markdown_math,
+                 p.use_marked,
                 p.meta_description,
                 p.featured_image,
                      COALESCE(u.display_name, 'Editorial Team') AS author_name
@@ -213,6 +221,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.template,
+                p.markdown_math,
+                p.use_marked,
                 p.meta_title,
                 p.meta_description,
                 p.featured_image,
@@ -245,6 +255,8 @@ final class ContentRepository
                 p.status,
                 p.published_at,
                 p.meta_title,
+                p.markdown_math,
+                 p.use_marked,
                 p.meta_description,
                 p.featured_image,
                      COALESCE(u.display_name, 'Editorial Team') AS author_name
@@ -274,6 +286,8 @@ final class ContentRepository
         $row['meta_title'] = (string) ($row['meta_title'] ?? $row['title'] ?? '');
         $row['meta_description'] = (string) ($row['meta_description'] ?? $row['excerpt'] ?? '');
         $row['author_name'] = (string) ($row['author_name'] ?? 'Editorial Team');
+        $row['markdown_math'] = !empty($row['markdown_math']);
+        $row['use_marked'] = !empty($row['use_marked']);
         $row['reading_minutes'] = $this->readingMinutes((string) ($row['body_markdown'] ?? ''));
 
         $terms = $this->termsFor($contentType, (int) ($row['id'] ?? 0));

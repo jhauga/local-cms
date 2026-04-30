@@ -4,16 +4,23 @@ declare(strict_types=1);
 namespace Cms\Core;
 
 use Cms\Http\Response;
+use FilesystemIterator;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 use Throwable;
 
 final class Theme
 {
+    private const PUBLIC_ASSET_EXTENSIONS = ['css', 'js', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'avif'];
+
     private string $themePath;
 
-    public function __construct(private string $rootPath, private string $themeName)
+    public function __construct(private string $rootPath, private string $themeName, private string $mediaDirectory = 'img')
     {
         $this->themePath = rtrim($this->rootPath, '/\\') . '/themes/' . $this->themeName;
+        $this->mediaDirectory = trim($this->mediaDirectory, '/\\');
+        $this->mediaDirectory = $this->mediaDirectory !== '' ? $this->mediaDirectory : 'img';
 
         if (!is_dir($this->themePath)) {
             throw new RuntimeException('The configured theme directory does not exist.');
@@ -61,11 +68,21 @@ final class Theme
 
     public function assetResponse(string $assetName): Response
     {
-        if (preg_match('/^[A-Za-z0-9._-]+$/', $assetName) !== 1) {
+        $normalizedAssetName = trim(str_replace('\\', '/', $assetName), '/');
+
+        if ($normalizedAssetName === '') {
             return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
         }
 
-        $assetPath = $this->themePath . '/' . $assetName;
+        if (preg_match('#(^|/)\.\.?(/|$)#', $normalizedAssetName) === 1 || preg_match('#(^|/)\.[^/]+#', $normalizedAssetName) === 1) {
+            return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+
+        if (preg_match('#^[A-Za-z0-9._/-]+$#', $normalizedAssetName) !== 1) {
+            return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+
+        $assetPath = $this->themePath . '/' . $normalizedAssetName;
 
         if (!is_file($assetPath)) {
             return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
@@ -86,7 +103,62 @@ final class Theme
 
     public function stylesheetUrl(): string
     {
-        return '/theme/style.css';
+        return $this->assetUrl('style.css');
+    }
+
+    public function assetUrl(string $path = ''): string
+    {
+        if ($path === '') {
+            return '/theme';
+        }
+
+        return '/theme/' . ltrim($path, '/');
+    }
+
+    public function mediaDirectory(): string
+    {
+        return $this->mediaDirectory;
+    }
+
+    public function mediaUrl(string $path = ''): string
+    {
+        if ($path === '') {
+            return $this->assetUrl($this->mediaDirectory);
+        }
+
+        return $this->assetUrl($this->mediaDirectory . '/' . ltrim($path, '/'));
+    }
+
+    public function publicAssetPaths(): array
+    {
+        $assets = [];
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->themePath, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
+            $relativePath = str_replace('\\', '/', substr($file->getPathname(), strlen($this->themePath) + 1));
+
+            if ($relativePath === '' || preg_match('#(^|/)\.[^/]+#', $relativePath) === 1) {
+                continue;
+            }
+
+            $extension = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, self::PUBLIC_ASSET_EXTENSIONS, true)) {
+                continue;
+            }
+
+            $assets[] = $relativePath;
+        }
+
+        sort($assets);
+
+        return $assets;
     }
 
     private function resolveTemplate(string $template): string
@@ -114,6 +186,12 @@ final class Theme
             'css' => 'text/css',
             'js' => 'application/javascript',
             'svg' => 'image/svg+xml',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'ico' => 'image/x-icon',
+            'avif' => 'image/avif',
             default => 'text/plain',
         };
     }

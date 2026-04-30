@@ -15,6 +15,7 @@ use Cms\Repositories\AdminRepository;
 use Cms\Repositories\ContentRepository;
 use Cms\Security\Auth;
 use Cms\Security\Session;
+use Cms\Support\MarkdownTemplateCatalog;
 
 $rootPath = dirname(__DIR__);
 
@@ -33,7 +34,11 @@ $adminRepository = new AdminRepository(Database::connection());
 $auth = new Auth($adminRepository);
 $adminView = new AdminView($rootPath);
 $adminController = new AdminController($config, $adminView, $adminRepository, $auth);
-$theme = new Theme($rootPath, (string) $config->get('app.theme', 'default'));
+$theme = new Theme(
+    $rootPath,
+    (string) $config->get('app.theme.name', 'default'),
+    (string) $config->get('app.theme.media', 'img')
+);
 $router = new Router();
 
 $sharedData = static function (string $currentPath) use ($contentRepository, $config, $theme): array {
@@ -74,11 +79,16 @@ $sharedData = static function (string $currentPath) use ($contentRepository, $co
     return [
         'siteName' => $siteName,
         'siteTagline' => $siteTagline,
+        'markdownTemplateMap' => MarkdownTemplateCatalog::mapFromSettings($settings),
         'homeUrl' => parse_url((string) $config->get('app.url', '/'), PHP_URL_PATH) ?: '/',
         'navigation' => $navigation,
         'currentPath' => $currentPath,
         'stylesheetUrl' => $theme->stylesheetUrl(),
+        'themeAssetBaseUrl' => $theme->assetUrl(),
+        'themeMediaDirectory' => $theme->mediaDirectory(),
+        'themeMediaUrl' => $theme->mediaUrl(),
         'categories' => $contentRepository->termsByTaxonomy('category'),
+        'clientConverterEnabled' => (bool) $config->get('app.application.content.clientConverter', false),
     ];
 };
 
@@ -101,8 +111,50 @@ $missingPage = static function (string $path, string $title, string $message) us
     return new Response($body, 404);
 };
 
-$router->get('/theme/style.css', static function (Request $request) use ($theme): Response {
-    return $theme->assetResponse('style.css');
+$router->get('/theme/{assetPath*}', static function (Request $request, array $parameters) use ($theme): Response {
+    return $theme->assetResponse((string) ($parameters['assetPath'] ?? ''));
+});
+
+$publicAssetsPath = $rootPath . '/public/assets';
+
+$router->get('/assets/{assetPath*}', static function (Request $request, array $parameters) use ($publicAssetsPath): Response {
+    $assetName = trim(str_replace('\\', '/', (string) ($parameters['assetPath'] ?? '')), '/');
+
+    if (
+        $assetName === '' ||
+        preg_match('#(^|/)\.\.?(/|$)#', $assetName) === 1 ||
+        preg_match('#(^|/)\.[^/]+#', $assetName) === 1 ||
+        preg_match('#^[A-Za-z0-9._/-]+$#', $assetName) !== 1
+    ) {
+        return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $filePath = $publicAssetsPath . '/' . $assetName;
+
+    if (!is_file($filePath)) {
+        return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $content = file_get_contents($filePath);
+
+    if ($content === false) {
+        return new Response('Asset could not be read.', 500, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $contentType = match (strtolower(pathinfo($filePath, PATHINFO_EXTENSION))) {
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'svg' => 'image/svg+xml',
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'ico' => 'image/x-icon',
+        'avif' => 'image/avif',
+        default => 'text/plain',
+    };
+
+    return new Response($content, 200, ['Content-Type' => $contentType . '; charset=UTF-8']);
 });
 
 $router->get('/admin', static function (Request $request) use ($adminController): Response {
@@ -119,6 +171,10 @@ $router->post('/admin/login', static function (Request $request) use ($adminCont
 
 $router->post('/admin/logout', static function (Request $request) use ($adminController): Response {
     return $adminController->logout($request);
+});
+
+$router->post('/admin/preview/markdown', static function (Request $request) use ($adminController): Response {
+    return $adminController->previewMarkdown($request);
 });
 
 $router->get('/admin/pages', static function (Request $request) use ($adminController): Response {
@@ -199,6 +255,14 @@ $router->get('/admin/settings', static function (Request $request) use ($adminCo
 
 $router->post('/admin/settings', static function (Request $request) use ($adminController): Response {
     return $adminController->updateSettings($request);
+});
+
+$router->get('/admin/templating', static function (Request $request) use ($adminController): Response {
+    return $adminController->templatingForm($request);
+});
+
+$router->post('/admin/templating', static function (Request $request) use ($adminController): Response {
+    return $adminController->updateTemplating($request);
 });
 
 $router->get('/', static function (Request $request) use ($contentRepository, $sharedData, $theme, $config): Response {

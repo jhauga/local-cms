@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Cms\Core\ThemeRuntime;
+use Cms\Support\Markdown;
 
 if (!function_exists('esc_html')) {
     function esc_html(string $text): string
@@ -73,6 +74,34 @@ if (!function_exists('home_url')) {
     }
 }
 
+if (!function_exists('localcms_render_compact_markdown')) {
+    function localcms_render_compact_markdown(string $text): string
+    {
+        return Markdown::toCompactInlineHtml($text);
+    }
+}
+
+if (!function_exists('localcms_compact_markdown_text')) {
+    function localcms_compact_markdown_text(string $text): string
+    {
+        return Markdown::toCompactInlineText($text);
+    }
+}
+
+if (!function_exists('theme_asset_url')) {
+    function theme_asset_url(string $path = ''): string
+    {
+        return ThemeRuntime::themeAssetUrl($path);
+    }
+}
+
+if (!function_exists('theme_media_url')) {
+    function theme_media_url(string $path = ''): string
+    {
+        return ThemeRuntime::themeMediaUrl($path);
+    }
+}
+
 if (!function_exists('language_attributes')) {
     function language_attributes(): void
     {
@@ -97,12 +126,39 @@ if (!function_exists('post_class')) {
 if (!function_exists('wp_head')) {
     function wp_head(): void
     {
+        if (ThemeRuntime::queryUsesClientMarkdown()) {
+            echo '<link rel="stylesheet" href="/assets/markdown.css">' . "\n";
+        }
+
+        if (ThemeRuntime::currentItemUsesMarkdownMath()) {
+            echo <<<'HTML'
+<script>
+        MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],
+                displayMath: [['\\[', '\\]']]
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            }
+        };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+HTML;
+        }
     }
 }
 
 if (!function_exists('wp_footer')) {
     function wp_footer(): void
     {
+        if (ThemeRuntime::queryUsesClientMarkdown()) {
+            echo '<script>window.LocalCmsMarkdownTemplates = ' . json_encode(
+                ThemeRuntime::data('markdownTemplateMap', []),
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES
+            ) . ';</script>' . "\n";
+            echo '<script src="/assets/convert.js"></script>' . "\n";
+        }
     }
 }
 
@@ -157,7 +213,7 @@ if (!function_exists('get_the_title')) {
 if (!function_exists('the_title')) {
     function the_title(string $before = '', string $after = '', ?array $post = null): void
     {
-        echo $before . esc_html(get_the_title($post)) . $after;
+        echo $before . localcms_render_compact_markdown(get_the_title($post)) . $after;
     }
 }
 
@@ -319,6 +375,33 @@ if (!function_exists('the_archive_title')) {
     function the_archive_title(string $before = '', string $after = ''): void
     {
         echo $before . esc_html(get_the_archive_title()) . $after;
+    }
+}
+
+if (!function_exists('has_custom_logo')) {
+    function has_custom_logo(): bool
+    {
+        return ThemeRuntime::hasCustomLogo();
+    }
+}
+
+if (!function_exists('get_custom_logo')) {
+    function get_custom_logo(): string
+    {
+        $url = ThemeRuntime::customLogoUrl();
+
+        if ($url === '') {
+            return '';
+        }
+
+        return '<img class="custom-logo" src="' . esc_url($url) . '" alt="' . esc_attr(get_bloginfo('name')) . '">';
+    }
+}
+
+if (!function_exists('the_custom_logo')) {
+    function the_custom_logo(): void
+    {
+        echo get_custom_logo();
     }
 }
 

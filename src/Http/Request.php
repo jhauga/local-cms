@@ -12,6 +12,7 @@ final class Request
         private array $body = [],
         private array $cookies = [],
         private array $server = [],
+        private array $files = [],
     ) {
         $this->method = strtoupper($this->method);
         $this->path = self::normalizePath($this->path);
@@ -28,7 +29,8 @@ final class Request
             self::sanitizeArray($_GET),
             self::sanitizeArray($_POST),
             self::sanitizeArray($_COOKIE),
-            self::sanitizeArray($_SERVER)
+            self::sanitizeArray($_SERVER),
+            self::sanitizeFiles($_FILES)
         );
     }
 
@@ -55,6 +57,20 @@ final class Request
     public function input(string $key, mixed $default = null): mixed
     {
         return $this->body[$key] ?? $this->query[$key] ?? $default;
+    }
+
+    public function file(string $key): ?array
+    {
+        $file = $this->files[$key] ?? null;
+
+        return is_array($file) ? $file : null;
+    }
+
+    public function hasFile(string $key): bool
+    {
+        $file = $this->file($key);
+
+        return is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
     }
 
     public function all(): array
@@ -99,6 +115,19 @@ final class Request
             }
 
             $sanitized[$key] = is_scalar($value) ? (string) $value : $value;
+        }
+
+        return $sanitized;
+    }
+
+    private static function sanitizeFiles(array $files): array
+    {
+        $sanitized = [];
+
+        foreach ($files as $key => $value) {
+            if (is_array($value)) {
+                $sanitized[$key] = self::sanitizeArray($value);
+            }
         }
 
         return $sanitized;

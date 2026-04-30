@@ -42,15 +42,18 @@ final class Auth
         $userId = (int) Session::get('auth_user_id', 0);
 
         if ($userId <= 0) {
-            return null;
+            $this->cachedUser = $this->repository->findDefaultUser();
+
+            return $this->cachedUser;
         }
 
         $user = $this->repository->findUserById($userId);
 
         if ($user === null) {
             Session::forget('auth_user_id');
+            $this->cachedUser = $this->repository->findDefaultUser();
 
-            return null;
+            return $this->cachedUser;
         }
 
         $this->cachedUser = $user;
