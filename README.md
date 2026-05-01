@@ -202,6 +202,8 @@ The workflow:
 
 For project Pages sites, the workflow sets `APP_URL` to the repository Pages URL automatically. If you use a custom domain or want to override the detected URL, add a repository variable named `APP_URL` in GitHub and the workflow will use that value instead.
 
+GitHub Pages does not build from your local `storage/database/cms.sqlite` file. The `storage/` directory is gitignored, so the workflow always starts from the committed schema plus SQL migrations on a fresh runner. If localhost and Pages drift after editing content in the admin UI, the missing piece is usually a migration or other tracked data update that mirrors those content changes into the repository.
+
 ## Theme Direction
 
 The default theme is intentionally shaped like a WordPress theme. It now goes beyond filenames: the frontend templates call `get_header()`, `get_footer()`, `get_template_part()`, `bloginfo()`, `body_class()`, and `post_class()` through a small compatibility layer in the app runtime.
