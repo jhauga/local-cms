@@ -125,7 +125,7 @@ final class Database
             $connection->beginTransaction();
 
             try {
-                $connection->exec($sql);
+                self::executeMigrationSql($connection, $sql);
                 $recordMigration->execute(['migration' => $migration]);
                 $connection->commit();
             } catch (PDOException $exception) {
@@ -134,5 +134,73 @@ final class Database
                 throw new RuntimeException('Migration failed for ' . $migration . ': ' . $exception->getMessage(), 0, $exception);
             }
         }
+    }
+
+    private static function executeMigrationSql(PDO $connection, string $sql): void
+    {
+        $addColumnStatements = self::extractAddColumnStatements($sql);
+
+        if ($addColumnStatements === null) {
+            $connection->exec($sql);
+            return;
+        }
+
+        foreach ($addColumnStatements as $statement) {
+            if (self::columnExists($connection, $statement['table'], $statement['column'])) {
+                continue;
+            }
+
+            $connection->exec($statement['sql']);
+        }
+    }
+
+    private static function extractAddColumnStatements(string $sql): ?array
+    {
+        $normalizedSql = preg_replace('/^\s*--.*$/m', '', $sql) ?? $sql;
+        $statements = preg_split('/;\s*(?:\R|$)/', $normalizedSql) ?: [];
+        $parsedStatements = [];
+
+        foreach ($statements as $statement) {
+            $trimmedStatement = trim($statement);
+            $matches = [];
+
+            if ($trimmedStatement === '') {
+                continue;
+            }
+
+            if (preg_match('/^ALTER\s+TABLE\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s+ADD\s+COLUMN\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\b[\s\S]*$/i', $trimmedStatement, $matches) !== 1) {
+                return null;
+            }
+
+            $parsedStatements[] = [
+                'table' => $matches[1],
+                'column' => $matches[2],
+                'sql' => $trimmedStatement . ';',
+            ];
+        }
+
+        return $parsedStatements;
+    }
+
+    private static function columnExists(PDO $connection, string $table, string $column): bool
+    {
+        $statement = $connection->query('PRAGMA table_info(' . self::quoteIdentifier($table) . ')');
+
+        if ($statement === false) {
+            return false;
+        }
+
+        while (($row = $statement->fetch()) !== false) {
+            if ((string) ($row['name'] ?? '') === $column) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function quoteIdentifier(string $identifier): string
+    {
+        return '"' . str_replace('"', '""', $identifier) . '"';
     }
 }
