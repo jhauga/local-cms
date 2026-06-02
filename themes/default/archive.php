@@ -1,5 +1,14 @@
 <?php
 declare(strict_types=1);
+
+/*
+ * local-cms injects $posts, $categories and $archiveTerm. Under WordPress the
+ * global $posts loop is already populated; backfill the filter rail and active
+ * term from core query data.
+ */
+$posts = $posts ?? (isset($GLOBALS['posts']) && is_array($GLOBALS['posts']) ? $GLOBALS['posts'] : []);
+$categories = $categories ?? localcms_theme_terms();
+$archiveTerm = $archiveTerm ?? localcms_theme_archive_term();
 ?>
 <?php get_header(); ?>
 <main id="content" class="site-main archive-shell">

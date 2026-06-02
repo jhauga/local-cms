@@ -7,8 +7,14 @@ if ($item === null) {
     return;
 }
 
+// WordPress names the tag taxonomy 'post_tag'; local-cms uses 'tag'.
+$tagTaxonomy = defined('ABSPATH') ? 'post_tag' : 'tag';
+
+// get_the_terms() returns array|false|WP_Error under WordPress; normalise both.
 $categories = get_the_terms($item, 'category');
-$tags = get_the_terms($item, 'tag');
+$tags = get_the_terms($item, $tagTaxonomy);
+$categories = is_array($categories) ? $categories : [];
+$tags = is_array($tags) ? $tags : [];
 
 if ($categories === [] && $tags === []) {
     return;

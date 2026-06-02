@@ -3,9 +3,9 @@
 ## Current
 
 - [x] Convert Markdown images
-- [ ] Create `awesome-copilot` tools
-  - [ ] New skill `content-management-systems`
-  - [ ] New plugin `content-management-system-development`
+- [x] Create `awesome-copilot` tools
+  - [x] New skill `content-management-systems`
+  - [x] New plugin `content-management-system-development`
 - [ ] Expand the built-in markdown template catalog from 2 defaults to 4 seeded examples
 
 ## Major

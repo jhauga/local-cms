@@ -1,8 +1,17 @@
 /*
 Theme Name: Local CMS Default
-Description: Starter theme for Local CMS with WordPress-oriented template structure.
-Version: 0.2.0
-Author: GitHub Copilot
+Theme URI: https://github.com/jhauga/local-cms
+Author: jhauga
+Author URI: https://github.com/jhauga
+Description: Editorial starter theme for Local CMS. Ships WordPress-shaped templates, template parts, and body/post class hooks so the same theme renders inside the Local CMS runtime and as a standalone WordPress theme.
+Version: 0.3.0
+Requires at least: 6.0
+Tested up to: 6.7
+Requires PHP: 8.1
+License: MIT License
+License URI: https://opensource.org/licenses/MIT
+Text Domain: local-cms
+Tags: blog, one-column, two-columns, custom-logo, custom-menu, featured-images, full-width-template, editor-style, translation-ready
 */
 
 :root {

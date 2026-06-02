@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+
+$siteName = $siteName ?? get_bloginfo('name');
+$navigation = $navigation ?? localcms_theme_navigation();
 ?>
         <footer class="site-footer">
             <div class="footer-copy">

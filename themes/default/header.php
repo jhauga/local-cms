@@ -1,5 +1,15 @@
 <?php
 declare(strict_types=1);
+
+/*
+ * When local-cms renders this theme it injects $pageTitle, $pageDescription,
+ * $siteName and $navigation. Under stock WordPress those are absent, so fall
+ * back to core APIs. The ?? operator preserves any value local-cms provides.
+ */
+$siteName = $siteName ?? get_bloginfo('name');
+$pageTitle = $pageTitle ?? (function_exists('wp_get_document_title') ? wp_get_document_title() : $siteName);
+$pageDescription = $pageDescription ?? get_bloginfo('description');
+$navigation = $navigation ?? localcms_theme_navigation();
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>

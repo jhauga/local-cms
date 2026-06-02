@@ -1,5 +1,14 @@
 <?php
 declare(strict_types=1);
+
+/*
+ * Front-page data is supplied by local-cms; provide WordPress fallbacks so the
+ * hero and category rail still render after a direct theme import.
+ */
+$siteName = $siteName ?? get_bloginfo('name');
+$intro = $intro ?? get_bloginfo('description');
+$heroPage = $heroPage ?? [];
+$categories = $categories ?? localcms_theme_terms();
 ?>
 <?php get_header(); ?>
 <main id="content" class="site-main">

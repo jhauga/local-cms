@@ -51,7 +51,7 @@ $primaryCategory = localcms_primary_term($item, 'category');
             <?php get_template_part('template-parts/term-pills', null, ['item' => $item]); ?>
 
             <div class="prose">
-                <?php the_content($item); ?>
+                <?php the_content(is_array($item) ? $item : null); ?>
             </div>
         </div>
     </div>
