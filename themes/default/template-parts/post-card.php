@@ -28,7 +28,10 @@ $primaryCategory = localcms_primary_term($item, 'category');
                 <p class="story-meta"><?= esc_html((string) localcms_reading_minutes($item)) ?> min read</p>
             </div>
             <h3 class="story-title"><?= localcms_render_compact_markdown(get_the_title($item)) ?></h3>
-            <p class="story-excerpt"><?= esc_html(get_the_excerpt($item)) ?></p>
+            <?php $excerpt = localcms_display_excerpt($item, 'post'); ?>
+            <?php if ($excerpt !== ''): ?>
+                <p class="story-excerpt"><?= esc_html($excerpt) ?></p>
+            <?php endif; ?>
         </div>
     </a>
 

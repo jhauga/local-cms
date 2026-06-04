@@ -612,6 +612,9 @@ img.logo {
     align-content: start;
     gap: 1rem;
     margin: 0 0 1rem 1.35rem;
+    position: relative;
+    z-index: 3;
+    background: white;
 }
 
 .entry-figure {

@@ -31,16 +31,135 @@ if (!function_exists('theme_format_date')) {
     }
 }
 
+if (!function_exists('localcms_normalize_term')) {
+    /**
+     * Normalise a single term into the array shape every template reads.
+     *
+     * Accepts a local-cms term array or a WordPress WP_Term object. WP_Term
+     * exposes its data through magic property access (e.g. $term->name) and does
+     * NOT implement ArrayAccess, so reading it with array syntax ($term['name'])
+     * fatals with "Cannot use object of type WP_Term as array". This converts
+     * either input to a plain array so callers can use array syntax safely.
+     *
+     * Shape: ['name','slug','taxonomy','content_count'] | null. WordPress's
+     * 'post_tag' taxonomy is reported as 'tag' to match the local-cms convention
+     * used throughout the templates.
+     */
+    function localcms_normalize_term(array|object|null $term): ?array
+    {
+        if ($term === null) {
+            return null;
+        }
+
+        if (is_array($term)) {
+            $taxonomy = (string) ($term['taxonomy'] ?? '');
+            $count = $term['content_count'] ?? ($term['count'] ?? 0);
+
+            return [
+                'name' => (string) ($term['name'] ?? ''),
+                'slug' => (string) ($term['slug'] ?? ''),
+                'taxonomy' => $taxonomy === 'post_tag' ? 'tag' : $taxonomy,
+                'content_count' => (int) $count,
+            ];
+        }
+
+        $taxonomy = (string) ($term->taxonomy ?? '');
+
+        return [
+            'name' => (string) ($term->name ?? ''),
+            'slug' => (string) ($term->slug ?? ''),
+            'taxonomy' => $taxonomy === 'post_tag' ? 'tag' : $taxonomy,
+            'content_count' => (int) ($term->count ?? 0),
+        ];
+    }
+}
+
 if (!function_exists('theme_term_url')) {
     /**
-     * Build a term archive URL from a local-cms term array or a WP_Term object
-     * (WP_Term supports array access, so the same read syntax works for both).
+     * Build a term archive URL from a local-cms term array or a WP_Term object.
+     *
+     * Under WordPress the canonical archive URL depends on the site's permalink
+     * structure, so get_term_link() is used to resolve it correctly (the plain
+     * /category/{slug} path only works with pretty permalinks). local-cms serves
+     * its own clean /category/ and /tag/ routes, used as the fallback.
      */
     function theme_term_url(array|object $term): string
     {
-        $base = ($term['taxonomy'] ?? '') === 'category' ? '/category/' : '/tag/';
+        $term = localcms_normalize_term($term) ?? [];
+        $slug = (string) ($term['slug'] ?? '');
+        $taxonomy = (string) ($term['taxonomy'] ?? '');
 
-        return home_url($base . rawurlencode((string) ($term['slug'] ?? '')));
+        if (defined('ABSPATH') && function_exists('get_term_link') && $slug !== '') {
+            $wpTaxonomy = $taxonomy === 'tag' ? 'post_tag' : ($taxonomy !== '' ? $taxonomy : 'category');
+            $link = get_term_link($slug, $wpTaxonomy);
+
+            if (is_string($link) && $link !== '') {
+                return $link;
+            }
+        }
+
+        $base = $taxonomy === 'category' ? '/category/' : '/tag/';
+
+        return home_url($base . rawurlencode($slug));
+    }
+}
+
+if (!function_exists('localcms_posts_url')) {
+    /**
+     * URL of the post listing for the current runtime.
+     *
+     * local-cms serves the post index at /posts. WordPress has no such route:
+     * the listing lives at the page assigned as the "Posts page" under
+     * Settings -> Reading, or at the site root when posts are shown on the
+     * front page.
+     */
+    function localcms_posts_url(): string
+    {
+        if (defined('ABSPATH') && function_exists('get_option')) {
+            $postsPage = (int) get_option('page_for_posts');
+
+            if ($postsPage > 0) {
+                $url = get_permalink($postsPage);
+
+                if (is_string($url) && $url !== '') {
+                    return $url;
+                }
+            }
+
+            return home_url('/');
+        }
+
+        return home_url('/posts');
+    }
+}
+
+if (!function_exists('localcms_page_url')) {
+    /**
+     * URL of a content page by slug for the current runtime.
+     *
+     * local-cms serves pages at /page/{slug}. WordPress resolves the page by
+     * path and returns its permalink, falling back to the home page when no page
+     * with that slug exists.
+     */
+    function localcms_page_url(string $slug): string
+    {
+        $slug = trim($slug, '/');
+
+        if (defined('ABSPATH') && function_exists('get_page_by_path')) {
+            $page = get_page_by_path($slug);
+
+            if ($page !== null) {
+                $url = get_permalink($page);
+
+                if (is_string($url) && $url !== '') {
+                    return $url;
+                }
+            }
+
+            return home_url('/');
+        }
+
+        return home_url('/page/' . $slug);
     }
 }
 
@@ -48,22 +167,24 @@ if (!function_exists('localcms_primary_term')) {
     /**
      * Resolve the first term for a content item.
      *
-     * Accepts a local-cms array item or a WordPress post object/ID. Returns the
-     * raw term (array in local-cms, WP_Term in WordPress) so callers can read it
-     * with array syntax in either runtime.
+     * Accepts a local-cms array item or a WordPress post object/ID. Always
+     * returns a normalised term array (or null) so callers can read it with
+     * array syntax in either runtime.
      */
-    function localcms_primary_term(array|object|int|null $item = null, string $taxonomy = 'category'): array|object|null
+    function localcms_primary_term(array|object|int|null $item = null, string $taxonomy = 'category'): ?array
     {
         if (is_array($item)) {
             $terms = $taxonomy === 'category' ? ($item['categories'] ?? []) : ($item['tags'] ?? []);
+            $term = is_array($terms) ? ($terms[0] ?? null) : null;
 
-            return is_array($terms) ? ($terms[0] ?? null) : null;
+            return localcms_normalize_term($term);
         }
 
         $resolvedTaxonomy = defined('ABSPATH') && $taxonomy === 'tag' ? 'post_tag' : $taxonomy;
         $terms = get_the_terms($item ?? get_post(), $resolvedTaxonomy);
+        $term = is_array($terms) ? ($terms[0] ?? null) : null;
 
-        return is_array($terms) ? ($terms[0] ?? null) : null;
+        return localcms_normalize_term($term);
     }
 }
 
@@ -91,6 +212,39 @@ if (!function_exists('localcms_reading_minutes')) {
             : strip_tags(get_the_content(null, false, $current));
 
         return max(1, (int) ceil(str_word_count($content) / 200));
+    }
+}
+
+if (!function_exists('localcms_display_excerpt')) {
+    /**
+     * Resolve the excerpt a template should display, by content type.
+     *
+     *  - Pages never show an excerpt.
+     *  - Posts show an excerpt only when one was explicitly authored.
+     *
+     * This deliberately avoids WordPress's default behaviour of synthesising an
+     * excerpt from the opening paragraph of the body: core get_the_excerpt()
+     * trims the content when no manual excerpt exists, which made posts (and
+     * pages) echo their own opening paragraph. has_excerpt() distinguishes a
+     * real, author-entered excerpt from that auto-generated one. In local-cms
+     * the excerpt column is already manual-only, so the stored value is used
+     * directly.
+     */
+    function localcms_display_excerpt(array|object|int|null $item = null, string $kind = ''): string
+    {
+        if ($kind === '') {
+            $kind = get_post_type($item);
+        }
+
+        if ($kind === 'page') {
+            return '';
+        }
+
+        if (defined('ABSPATH')) {
+            return has_excerpt($item) ? get_the_excerpt($item) : '';
+        }
+
+        return get_the_excerpt($item);
     }
 }
 

@@ -6,6 +6,13 @@
 - [x] Create `awesome-copilot` tools
   - [x] New skill `content-management-systems`
   - [x] New plugin `content-management-system-development`
+- [x] Render the default theme inside a stock WordPress install
+  - [x] Normalize taxonomy terms so `WP_Term` objects read like local-cms term arrays
+  - [x] Limit excerpts to authored post excerpts; omit them on pages
+  - [x] Resolve post, page, and term URLs through runtime-aware helpers
+- [x] Add a `plugins/` workspace and the `Local CMS Markdown` WordPress plugin
+  - [x] Admin `Templating` screen and `[localcms_markdown]` shortcode
+- [x] Add cross-platform `export.bat` and `export.sh` packaging scripts
 - [ ] Expand the built-in markdown template catalog from 2 defaults to 4 seeded examples
 
 ## Major

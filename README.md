@@ -29,6 +29,9 @@ The current scaffold includes a public entry point, environment and config loadi
 - Repo-local static export command: `perl localcms.pl --build`
 - GitHub Pages workflow that publishes `export/` as the deployed site root
 - Markdown adapter that uses `league/commonmark` automatically if installed later, with a safe built-in fallback renderer today
+- WordPress-ready default theme: the same templates render inside a stock WordPress install, resolving taxonomy terms, excerpts, and permalinks through helpers that detect the runtime
+- `plugins/` workspace for building and testing CMS plugins before export, including the staple `Local CMS Markdown` WordPress plugin
+- Cross-platform packaging scripts, `export.bat` and `export.sh`, that zip a theme or plugin for deployment
 
 ## Project Structure
 
@@ -38,11 +41,14 @@ config/              Runtime configuration
 config.json          CMS theme and application defaults
 database/            SQLite schema and starter content
 database/migrations/ Incremental schema and seed changes
+plugins/             Plugin workspace (build/test before export)
 public/              Web entry point and dev router
 scripts/             CLI build/export entry points
 src/                 Core application classes
 storage/database/    SQLite database file location
 themes/default/      Default frontend theme
+export.bat           Theme/plugin packaging (Windows)
+export.sh            Theme/plugin packaging (Linux/macOS)
 ```
 
 The default theme now also includes `template-parts/` partials and a starter `theme.json` file to make the next WordPress extraction step more mechanical.
@@ -213,6 +219,28 @@ That means the theme is now organized around the same structural seams that a la
 - shared entry markup lives in `themes/default/template-parts/`
 - theme metadata and future editor settings live in `themes/default/theme.json`
 - the application still owns routing and data queries, but templates already render through WordPress-shaped helpers
+
+## Exporting to WordPress
+
+The default theme and the bundled plugin can be packaged for a stock WordPress install. Use the `export` script for the current platform:
+
+```powershell
+export themes default
+export plugins local-cms-markdown
+```
+
+```bash
+./export.sh themes default
+./export.sh plugins local-cms-markdown
+```
+
+Each run writes a zip under `_export-themes/` or `_export-plugins/` — the default theme as `local-cms.zip`, the plugin as `local-cms-markdown.zip`. The archive root holds the folder's files directly, with no wrapping directory, so the contents extract straight into `wp-content/themes/<slug>/` or `wp-content/plugins/<slug>/`.
+
+Imported into WordPress, the default theme renders pages, posts, archives, and taxonomy term links without code changes. Term references, excerpts, and permalinks resolve through helpers that detect the runtime: pages omit the excerpt lead, and posts show an excerpt only when one is authored.
+
+### Local CMS Markdown plugin
+
+`plugins/local-cms-markdown/` packages the Markdown engine (`convert.js` and `markdown.css`) as a stand-alone WordPress plugin. After activation, a `Local CMS MD` item in the admin sidebar opens a `Templating` screen for reusable HTML wrapper snippets — the WordPress counterpart of the admin `Templating` page. Render a whole post or page by enabling `Render this content as Markdown` in the editor, or render an inline snippet with the `[localcms_markdown]` shortcode. See [plugins/README.md](plugins/README.md) for the full workflow.
 
 ## Markdown Pipeline
 

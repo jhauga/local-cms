@@ -44,8 +44,9 @@ $primaryCategory = localcms_primary_term($item, 'category');
                 <p class="story-meta"><?= esc_html((string) localcms_reading_minutes($item)) ?> min read</p>
             </div>
 
-            <?php if (get_the_excerpt($item) !== ''): ?>
-                <p class="lead"><?= esc_html(get_the_excerpt($item)) ?></p>
+            <?php $excerpt = localcms_display_excerpt($item, $kind); ?>
+            <?php if ($excerpt !== ''): ?>
+                <p class="lead"><?= esc_html($excerpt) ?></p>
             <?php endif; ?>
 
             <?php get_template_part('template-parts/term-pills', null, ['item' => $item]); ?>

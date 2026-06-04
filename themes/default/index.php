@@ -21,8 +21,8 @@ $categories = $categories ?? localcms_theme_terms();
                 <?= $heroPage['body_html'] ?? '<p>Seed content is ready for the next slice.</p>' ?>
             </div>
             <div class="hero-actions">
-                <a class="button-link" href="<?= esc_url(home_url('/posts')) ?>">Read sample posts</a>
-                <a class="text-link" href="<?= esc_url(home_url('/page/about')) ?>">See the theme approach</a>
+                <a class="button-link" href="<?= esc_url(localcms_posts_url()) ?>">Read sample posts</a>
+                <a class="text-link" href="<?= esc_url(localcms_page_url('about')) ?>">See the theme approach</a>
             </div>
         </div>
         <aside class="hero-card">
