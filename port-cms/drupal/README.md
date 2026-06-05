@@ -29,6 +29,16 @@ port-cms drupal plugin/local-cms-markdown
 - `img/`, `screenshot.png` — carried over as-is
 - `_wordpress-source/` — the original WordPress templates, kept for reference
 
+Themes that ship templates beyond the core set get those ported too, only when the
+source file is present (so the default theme is unaffected). The richer
+`local-builder` theme, for example, also produces:
+
+- `block--search-form-block.html.twig` — from `searchform.php` / `search.php`, re-emitting the `widget`/`search-form` classes around Drupal's search form; place a *Search form* block in the sidebar region to use it
+- `region--sidebar.html.twig` — from `sidebar.php`, wrapping the sidebar region's blocks in the `site-sidebar` aside
+- `templates/page--404.html.twig` plus a `hook_theme_suggestions_page_alter()` in `<machine>.theme` — from `404.php`, so the ported not-found layout renders on 404 responses (the Drupal equivalent of WordPress loading `404.php`)
+
+These are driven by a single "emit when present" map in `transform.php`, the one place to teach the adapter a new template; a sibling CMS adapter can mirror the same shape.
+
 **Plugin** (`_port-plugins/drupal/<slug>/`):
 
 - `<machine>.info.yml` — module metadata read from the plugin header

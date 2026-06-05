@@ -116,6 +116,12 @@ function port_theme(string $stage, string $machine): void
     // Lift the inline behavior script out of footer.php into a real JS asset.
     $hasJs = extract_footer_js($stage);
 
+    // Port any optional WordPress templates the staged theme ships (search,
+    // sidebar, 404). Returns which were found so the .info.yml/.theme wiring
+    // below can react. Themes without these (e.g. the default theme) are
+    // unaffected; richer themes (e.g. local-builder) get them ported too.
+    $optional = port_optional_templates($stage);
+
     // info.yml
     $info = "name: " . yq($name) . "\n"
         . "type: theme\n"
@@ -147,7 +153,13 @@ function port_theme(string $stage, string $machine): void
     put($stage . "/{$machine}.libraries.yml", $libraries);
 
     // Theme hooks: expose site name/slogan to page.html.twig for the footer line.
-    put($stage . "/{$machine}.theme", theme_dot_theme($machine, $name));
+    // When a 404.php was ported, append the suggestion hook that activates
+    // templates/page--404.html.twig on 404 responses.
+    $themeHooks = theme_dot_theme($machine, $name);
+    if (!empty($optional['has_404'])) {
+        $themeHooks .= theme_page_suggestions_hook($machine);
+    }
+    put($stage . "/{$machine}.theme", $themeHooks);
 
     // Twig templates. The original WordPress class names are preserved so the
     // ported css/style.css applies directly (the "Twig approach" to class
@@ -173,7 +185,8 @@ function port_theme(string $stage, string $machine): void
 
     // Preserve the WordPress-shaped source for reference while porting markup.
     foreach (['index.php', 'page.php', 'single.php', 'archive.php', 'header.php',
-              'footer.php', 'functions.php', 'theme.json', 'template-parts'] as $entry) {
+              'footer.php', 'functions.php', 'theme.json', 'template-parts',
+              'search.php', 'searchform.php', 'sidebar.php', '404.php', 'comments.php'] as $entry) {
         archive_source($stage, $entry);
     }
 
@@ -225,6 +238,49 @@ function dedent(string $text): string
         static fn(string $line): string => substr($line, $min) === false ? $line : substr($line, $min),
         $lines
     ));
+}
+
+/**
+ * Port the optional WordPress templates a theme may ship beyond the core set.
+ *
+ * Data-driven on purpose: each entry maps a staged WordPress file to the Twig
+ * artifact it produces, written only when the source file is present. The map is
+ * the single place to teach this adapter a new template, and a sibling CMS
+ * adapter can mirror the same "emit when present" shape for its own conventions
+ * instead of duplicating per-file branching.
+ *
+ * Returns flags describing what was found so the caller can wire the matching
+ * .info.yml regions and .theme hooks (e.g. the page__404 suggestion).
+ *
+ * @return array{has_search: bool, has_sidebar: bool, has_404: bool}
+ */
+function port_optional_templates(string $stage): array
+{
+    // source file => [target twig (relative to stage), generator function].
+    // searchform.php and search.php both resolve to the one search-block
+    // override; writing it once is enough, so already-written targets are skipped.
+    $map = [
+        'searchform.php' => ['templates/block--search-form-block.html.twig', 'theme_search_block_twig'],
+        'search.php'     => ['templates/block--search-form-block.html.twig', 'theme_search_block_twig'],
+        'sidebar.php'    => ['templates/region--sidebar.html.twig', 'theme_region_sidebar_twig'],
+        '404.php'        => ['templates/page--404.html.twig', 'theme_page_404_twig'],
+    ];
+
+    $written = [];
+
+    foreach ($map as $source => [$target, $generator]) {
+        if (!is_file($stage . '/' . $source) || isset($written[$target])) {
+            continue;
+        }
+        put($stage . '/' . $target, $generator());
+        $written[$target] = true;
+    }
+
+    return [
+        'has_search' => is_file($stage . '/searchform.php') || is_file($stage . '/search.php'),
+        'has_sidebar' => is_file($stage . '/sidebar.php'),
+        'has_404' => is_file($stage . '/404.php'),
+    ];
 }
 
 function port_module(string $stage, string $machine, ?string $name): void
@@ -470,6 +526,116 @@ function theme_branding_twig(): string
 </div>
 
 TWIG;
+}
+
+function theme_search_block_twig(): string
+{
+    // Ported from searchform.php / search.php. Re-emits the search-form wrapper
+    // class so css/style.css applies; {{ content }} is the Drupal search form.
+    return <<<'TWIG'
+{#
+  Search block, ported from the Local CMS searchform.php. Re-emits the
+  widget/search-form classes so css/style.css applies. {{ content }} is the
+  Drupal-rendered search form; place a "Search form" block in the sidebar region
+  to use it.
+#}
+<section{{ attributes.addClass('widget', 'widget-search') }}>
+  {{ title_prefix }}
+  {% if label %}
+    <h2 class="widget-title">{{ label }}</h2>
+  {% endif %}
+  {{ title_suffix }}
+  <div class="search-form">
+    {{ content }}
+  </div>
+</section>
+
+TWIG;
+}
+
+function theme_region_sidebar_twig(): string
+{
+    // Ported from sidebar.php. Wraps the sidebar region's blocks in the
+    // WordPress aside class so css/style.css applies.
+    return <<<'TWIG'
+{#
+  Sidebar region, ported from the Local CMS sidebar.php. Wraps the blocks placed
+  in the sidebar region with the site-sidebar class so css/style.css applies.
+#}
+{% if content %}
+  <aside class="site-sidebar" role="complementary">
+    {{ content }}
+  </aside>
+{% endif %}
+
+TWIG;
+}
+
+function theme_page_404_twig(): string
+{
+    // Ported from 404.php. Activated by the page__404 suggestion added in the
+    // .theme hook; mirrors the WordPress not-found layout. {{ page.content }}
+    // carries Drupal's own 404 message and any blocks placed in the content
+    // region (e.g. a search block).
+    return <<<'TWIG'
+{#
+  404 page, ported from the Local CMS 404.php. Rendered for 404 responses via the
+  page__404 suggestion in the .theme file. The page-shell / site-header /
+  site-footer classes are preserved so css/style.css applies.
+#}
+<div class="page-shell">
+  {% if page.header %}
+    <header class="site-header" role="banner">
+      {{ page.header }}
+      {% if page.primary_menu %}
+        <nav class="site-nav" aria-label="{{ 'Primary navigation'|t }}">
+          {{ page.primary_menu }}
+        </nav>
+      {% endif %}
+    </header>
+  {% endif %}
+
+  <main id="content" class="site-main narrow-layout" role="main">
+    <article class="content-panel entry-shell">
+      <div class="entry-main">
+        <p class="eyebrow">{{ 'Error 404'|t }}</p>
+        <h1>{{ 'Page not found'|t }}</h1>
+        <p class="lead">{{ 'The page you were looking for is not here. It may have been moved, renamed, or never existed.'|t }}</p>
+        {{ page.content }}
+        <div class="hero-actions">
+          <a class="button-link" href="{{ path('<front>') }}">{{ 'Back to home'|t }}</a>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <p class="footer-meta">&copy; {{ 'now'|date('Y') }}{% if site_name %} {{ site_name }}{% endif %}</p>
+  </footer>
+</div>
+
+TWIG;
+}
+
+function theme_page_suggestions_hook(string $machine): string
+{
+    return <<<PHP
+
+/**
+ * Implements hook_theme_suggestions_page_alter().
+ *
+ * Ported from the Local CMS 404.php. Adds a page__404 suggestion on 404
+ * responses so templates/page--404.html.twig is used, the Drupal equivalent of
+ * WordPress loading 404.php for unresolved URLs.
+ */
+function {$machine}_theme_suggestions_page_alter(array &\$suggestions, array \$variables) {
+  \$exception = \\Drupal::request()->attributes->get('exception');
+  if (\$exception instanceof \\Symfony\\Component\\HttpKernel\\Exception\\HttpExceptionInterface && \$exception->getStatusCode() == 404) {
+    \$suggestions[] = 'page__404';
+  }
+}
+
+PHP;
 }
 
 function theme_dot_theme(string $machine, string $name): string

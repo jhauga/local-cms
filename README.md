@@ -21,6 +21,7 @@ The current scaffold includes a public entry point, environment and config loadi
 - Page and post titles support a compact inline markdown subset for code, emphasis, strong text, strikethrough, and simple `sub`/`sup`/`ins` tags
 - Per-page and per-post Markdown renderer toggle that can lazy-load `marked.js` for richer client-side rendering when the built-in converter is not enough
 - Admin-side `Templating` screen for reusable markdown wrapper snippets stored in CMS settings instead of hardcoded client assets
+- Admin-side `Themes` screen that lists installed themes with screenshots, switches the active theme by writing `config.json`, and can browse and install themes from the public WordPress.org theme directory
 - Image uploads stored under `/uploads/` with configurable date folders, defaulting to `/uploads/YYYY/MM/`
 - Root `config.json` support for theme selection, theme media folders, content defaults, and upload date-path settings with safe fallbacks
 - Theme directory with `header.php`, `footer.php`, `index.php`, `page.php`, `single.php`, `archive.php`, `functions.php`, and `style.css`
@@ -30,6 +31,7 @@ The current scaffold includes a public entry point, environment and config loadi
 - GitHub Pages workflow that publishes `export/` as the deployed site root
 - Markdown adapter that uses `league/commonmark` automatically if installed later, with a safe built-in fallback renderer today
 - WordPress-ready default theme: the same templates render inside a stock WordPress install, resolving taxonomy terms, excerpts, and permalinks through helpers that detect the runtime
+- `local-builder` theme: a verbose, page-builder-ready variation styled on the Bootstrap framework with a sharp, dark slate gray skin, shipping search, sidebar, and 404 templates in addition to the core set
 - `plugins/` workspace for building and testing CMS plugins before export, including the staple `Local CMS Markdown` WordPress plugin
 - Cross-platform packaging scripts, `export.bat` and `export.sh`, that zip a theme or plugin for deployment
 - Cross-platform porting scripts, `port-cms.bat` and `port-cms.sh`, that stage a theme or plugin for other CMS platforms via a registry of targets and per-CMS adapter hooks
@@ -48,6 +50,7 @@ scripts/             CLI build/export entry points
 src/                 Core application classes
 storage/database/    SQLite database file location
 themes/default/      Default frontend theme
+themes/local-builder/ Bootstrap-based, page-builder-ready theme
 export.bat           Theme/plugin packaging (Windows)
 export.sh            Theme/plugin packaging (Linux/macOS)
 port-cms.bat         Port a theme/plugin to another CMS (Windows)
@@ -135,6 +138,13 @@ The admin area supports:
 - assign categories and tags from the content editor
 - create, edit, and delete taxonomy terms
 - update site name and tagline settings
+- switch the active theme from the `Themes` screen, with screenshots for each installed theme, and optionally browse and install themes from the WordPress.org directory
+
+Activating a theme writes `theme.name` to `config.json` and takes effect on the next page load. When `APP_THEME` is set in `.env`, it continues to override `config.json`, and the `Themes` screen notes this so the active theme stays predictable.
+
+Installing a theme from the WordPress.org directory downloads the package into a repo-local staging folder under `storage/tmp/`, extracts and validates it there, and only then moves the finished theme into `themes/` (the staging folder is removed afterward). Outbound HTTPS uses the operating system's native certificate store when the PHP build has no CA bundle configured, so the directory works on stock Windows PHP without a bundled `cacert.pem`.
+
+Only themes built for the local runtime can be set as the active theme. A local-runtime theme declares itself with a `Local CMS Runtime: compatible` line in its `style.css` header; the bundled `default` and `local-builder` themes carry it. Compatibility is decided from that marker **without executing any theme code** — a foreign WordPress theme is never loaded to test it, because its `functions.php` may call `exit()`/`die()` when WordPress is absent (the common `defined( 'ABSPATH' ) || exit;` guard) and terminate the process uncatchably. The Themes screen offers **Activate** only for marked themes and labels the rest *Export & port only*; a direct attempt to activate an unmarked theme is declined with an explanation, so it is never written into `config.json`. As a safety net, if `config.json` is ever pointed at an incompatible theme by hand, the runtime falls back to the default theme at boot (again without loading the incompatible one) and resets `config.json` so the site stays reachable. WordPress.org downloads remain available for `export` and `port-cms`.
 
 ## Validation
 
@@ -224,6 +234,8 @@ That means the theme is now organized around the same structural seams that a la
 - theme metadata and future editor settings live in `themes/default/theme.json`
 - the application still owns routing and data queries, but templates already render through WordPress-shaped helpers
 
+A second theme, `themes/local-builder/`, demonstrates the same runtime contract as a verbose, page-builder-ready variation. It layers a sharp-edged, dark slate gray skin on the Bootstrap framework (loaded from a CDN, with `style.css` mapping Bootstrap's own tokens onto the theme palette), inverts Bootstrap's rounded geometry, and drops gradients entirely. Beyond the core templates it ships `search.php`, `searchform.php`, `sidebar.php`, and `404.php`; the sidebar is included through `get_template_part('sidebar')` so it renders in both the Local CMS and WordPress runtimes, and the WordPress-only template tags are guarded for runtime parity.
+
 ## Exporting to WordPress
 
 The default theme and the bundled plugin can be packaged for a stock WordPress install. Use the `export` script for the current platform:
@@ -266,7 +278,7 @@ The CMS target is case-insensitive (`DrUpAL` resolves to `drupal`), and the `too
 
 Supported targets live in [port-cms/registry.txt](port-cms/registry.txt), and each CMS can ship an optional `port-cms/<cms>/transform.{sh,bat}` adapter that rewrites the staged files into that platform's conventions. New platforms are added one at a time — see [port-cms/README.md](port-cms/README.md) for the adapter contract.
 
-**Drupal** is the first implemented adapter. Porting to `drupal` scaffolds a Drupal 9/10/11 theme or module — generating the `<machine>.info.yml`, `<machine>.libraries.yml`, and (for themes) a `<machine>.theme` plus Twig templates that preserve the original WordPress class names so the ported `style.css` applies directly, or (for plugins) a `<machine>.module`. It relocates assets to Drupal's conventional folders (`css/`, `js/`), lifts the theme's inline footer script into a JS library, and preserves the original WordPress files under `_wordpress-source/` for reference. The adapter is written in PHP, so it requires PHP on the `PATH`. See [port-cms/drupal/README.md](port-cms/drupal/README.md) for the full output and the manual steps that remain.
+**Drupal** is the first implemented adapter. Porting to `drupal` scaffolds a Drupal 9/10/11 theme or module — generating the `<machine>.info.yml`, `<machine>.libraries.yml`, and (for themes) a `<machine>.theme` plus Twig templates that preserve the original WordPress class names so the ported `style.css` applies directly, or (for plugins) a `<machine>.module`. It relocates assets to Drupal's conventional folders (`css/`, `js/`), lifts the theme's inline footer script into a JS library, and preserves the original WordPress files under `_wordpress-source/` for reference. Themes that ship templates beyond the core set — such as `local-builder` with its `search.php`, `sidebar.php`, and `404.php` — have those ported as well through a data-driven map that only emits when the source file is present, so the default theme is unaffected. The adapter is written in PHP, so it requires PHP on the `PATH`. See [port-cms/drupal/README.md](port-cms/drupal/README.md) for the full output and the manual steps that remain.
 
 ## Markdown Pipeline
 

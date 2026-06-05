@@ -1,21 +1,24 @@
 {
-  "theme": {
-    "name": "default",
-    "media": "img"
-  },
-  "application": {
-    "mode": "local",
-    "admin": {
-      "title": "Local CMS Studio",
-      "chrome": "editorial"
+    "theme": {
+        "name": "local-builder",
+        "media": "img"
     },
-    "content": {
-      "defaultFormat": "markdown",
-      "previews": true,
-      "clientConverter": true
-    },
-    "uploads": {
-      "datePath": ["YYYY", "MM"]
+    "application": {
+        "mode": "local",
+        "admin": {
+            "title": "Local CMS Studio",
+            "chrome": "editorial"
+        },
+        "content": {
+            "defaultFormat": "markdown",
+            "previews": true,
+            "clientConverter": true
+        },
+        "uploads": {
+            "datePath": [
+                "YYYY",
+                "MM"
+            ]
+        }
     }
-  }
 }

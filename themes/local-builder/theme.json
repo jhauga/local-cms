@@ -1,0 +1,101 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "version": 3,
+  "settings": {
+    "appearanceTools": true,
+    "color": {
+      "defaultPalette": false,
+      "defaultGradients": false,
+      "gradients": [],
+      "palette": [
+        {
+          "slug": "page-bg",
+          "name": "Page Background",
+          "color": "#f4f6f6"
+        },
+        {
+          "slug": "surface",
+          "name": "Surface",
+          "color": "#ffffff"
+        },
+        {
+          "slug": "focal",
+          "name": "Dark Slate Gray",
+          "color": "#2f4f4f"
+        },
+        {
+          "slug": "focal-strong",
+          "name": "Dark Slate Gray Strong",
+          "color": "#213a3a"
+        },
+        {
+          "slug": "ink",
+          "name": "Ink",
+          "color": "#1d2a2a"
+        },
+        {
+          "slug": "muted",
+          "name": "Muted",
+          "color": "#5a6b6b"
+        }
+      ]
+    },
+    "layout": {
+      "contentSize": "760px",
+      "wideSize": "1180px"
+    },
+    "spacing": {
+      "units": [
+        "px",
+        "rem",
+        "%",
+        "vw"
+      ]
+    },
+    "typography": {
+      "defaultFontSizes": false,
+      "fontFamilies": [
+        {
+          "fontFamily": "\"Segoe UI\", system-ui, -apple-system, \"Helvetica Neue\", Arial, sans-serif",
+          "name": "Interface Sans",
+          "slug": "interface-sans"
+        },
+        {
+          "fontFamily": "Consolas, \"Courier New\", monospace",
+          "name": "Mono",
+          "slug": "mono"
+        }
+      ]
+    }
+  },
+  "styles": {
+    "color": {
+      "background": "#f4f6f6",
+      "text": "#1d2a2a"
+    },
+    "typography": {
+      "fontFamily": "var:preset|font-family|interface-sans"
+    },
+    "elements": {
+      "heading": {
+        "color": {
+          "text": "#1d2a2a"
+        }
+      },
+      "link": {
+        "color": {
+          "text": "#2f4f4f"
+        }
+      },
+      "button": {
+        "color": {
+          "background": "#2f4f4f",
+          "text": "#ffffff"
+        },
+        "border": {
+          "radius": "0px"
+        }
+      }
+    }
+  }
+}

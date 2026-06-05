@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin;
 
 use Cms\Core\Config;
+use Cms\Core\Env;
 use Cms\Http\Request;
 use Cms\Http\Response;
 use Cms\Repositories\AdminRepository;
@@ -12,7 +13,9 @@ use Cms\Security\Csrf;
 use Cms\Security\Session;
 use Cms\Support\Markdown;
 use Cms\Support\MarkdownTemplateCatalog;
+use Cms\Support\ThemeCatalog;
 use Cms\Support\Uploads;
+use Cms\Support\WordPressThemeDirectory;
 use DateTimeImmutable;
 
 final class AdminController
@@ -22,6 +25,8 @@ final class AdminController
         private AdminView $view,
         private AdminRepository $repository,
         private Auth $auth,
+        private ThemeCatalog $themes,
+        private WordPressThemeDirectory $themeDirectory,
     ) {
     }
 
@@ -425,6 +430,212 @@ final class AdminController
         Session::flash('notice', 'Templating updated.');
 
         return Response::redirect('/admin/templating');
+    }
+
+    public function themesForm(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $activeTheme = (string) $this->config->get('app.theme.name', 'default');
+        $envOverride = trim((string) Env::get('APP_THEME', ''));
+
+        $browse = trim((string) $request->query('browse', ''));
+        $directory = [
+            'available' => $this->themeDirectory->isAvailable(),
+            'requested' => false,
+            'browse' => $browse !== '' ? $browse : 'popular',
+            'themes' => [],
+            'hasMore' => false,
+            'error' => null,
+        ];
+
+        if ($browse !== '') {
+            $result = $this->themeDirectory->browse($browse);
+            $directory['requested'] = true;
+            $directory['themes'] = $result['themes'];
+            $directory['hasMore'] = !empty($result['hasMore']);
+            $directory['error'] = $result['error'];
+        }
+
+        // Flag each installed theme with whether it is compatible with the local
+        // runtime, so the view offers Activate only for those and never invites a
+        // click that would just be declined. The check is the static style.css
+        // marker; theme code is never executed here.
+        $installed = $this->themes->installed();
+
+        foreach ($installed as &$installedTheme) {
+            $installedTheme['compatible'] = $this->themes->isLocalRuntimeCompatible((string) $installedTheme['slug']);
+        }
+        unset($installedTheme);
+
+        $body = $this->view->render('themes', $this->baseData([
+            'pageTitle' => 'Themes',
+            'currentSection' => 'themes',
+            'themes' => $installed,
+            'activeTheme' => $activeTheme,
+            'envLocked' => $envOverride !== '',
+            'envOverride' => $envOverride,
+            'directory' => $directory,
+        ]));
+
+        return new Response($body);
+    }
+
+    public function activateTheme(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        if (!$this->validateCsrf($request)) {
+            Session::flash('error', 'Invalid security token.');
+
+            return Response::redirect('/admin/themes');
+        }
+
+        $slug = trim((string) $request->post('theme', ''));
+
+        $compatibilityError = $this->themes->compatibilityError($slug);
+
+        if ($compatibilityError !== null) {
+            $theme = $this->themes->find($slug);
+            $name = $theme['name'] ?? $slug;
+            Session::flash('error', sprintf(
+                'The "%s" theme cannot be activated: it is not compatible with the local runtime (%s). Themes installed from the WordPress.org directory need the WordPress runtime to render and are available here for export and porting only.',
+                $name,
+                $compatibilityError
+            ));
+
+            return Response::redirect('/admin/themes');
+        }
+
+        try {
+            $this->themes->activate($slug);
+            $theme = $this->themes->find($slug);
+            Session::flash('notice', ($theme['name'] ?? $slug) . ' is now the active theme.');
+        } catch (\RuntimeException $exception) {
+            Session::flash('error', $exception->getMessage());
+        }
+
+        return Response::redirect('/admin/themes');
+    }
+
+    public function installTheme(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $browse = trim((string) $request->post('browse', 'popular'));
+        $redirectTo = '/admin/themes?browse=' . rawurlencode($browse !== '' ? $browse : 'popular');
+
+        if (!$this->validateCsrf($request)) {
+            Session::flash('error', 'Invalid security token.');
+
+            return Response::redirect($redirectTo);
+        }
+
+        $slug = trim((string) $request->post('slug', ''));
+
+        try {
+            $installed = $this->themeDirectory->install($slug);
+            Session::flash('notice', 'Installed "' . $installed . '" into themes/. Activate it from the installed themes below.');
+        } catch (\RuntimeException $exception) {
+            Session::flash('error', $exception->getMessage());
+        }
+
+        return Response::redirect($redirectTo);
+    }
+
+    /**
+     * JSON endpoint used by the admin Themes screen to lazy-load additional
+     * pages of WordPress.org directory results as the user scrolls.
+     */
+    public function themesBrowseJson(Request $request): Response
+    {
+        if (!$this->auth->check()) {
+            return new Response(
+                json_encode(['error' => 'Authentication required.'], JSON_UNESCAPED_SLASHES),
+                401,
+                ['Content-Type' => 'application/json; charset=UTF-8']
+            );
+        }
+
+        $browse = trim((string) $request->query('browse', 'popular'));
+        $page = max(1, (int) $request->query('page', '1'));
+        $perPage = max(1, min(30, (int) $request->query('per_page', '12')));
+
+        if (!$this->themeDirectory->isAvailable()) {
+            $payload = [
+                'themes' => [],
+                'page' => $page,
+                'perPage' => $perPage,
+                'hasMore' => false,
+                'error' => 'Outbound HTTP is unavailable in this PHP build.',
+            ];
+
+            return new Response(
+                json_encode($payload, JSON_UNESCAPED_SLASHES),
+                200,
+                ['Content-Type' => 'application/json; charset=UTF-8']
+            );
+        }
+
+        $result = $this->themeDirectory->browse($browse, $perPage, $page);
+
+        // Annotate each remote theme with whether it is already in themes/, so
+        // the client can render an "Already installed" label instead of an
+        // Install button without making a second round-trip.
+        $installedSlugs = array_map(
+            static fn (array $theme): string => strtolower((string) ($theme['slug'] ?? '')),
+            $this->themes->installed()
+        );
+        $installedLookup = array_fill_keys($installedSlugs, true);
+
+        foreach ($result['themes'] as &$theme) {
+            $slug = strtolower((string) ($theme['slug'] ?? ''));
+            $theme['installed'] = isset($installedLookup[$slug]);
+        }
+        unset($theme);
+
+        return new Response(
+            json_encode($result, JSON_UNESCAPED_SLASHES),
+            200,
+            ['Content-Type' => 'application/json; charset=UTF-8']
+        );
+    }
+
+    public function themeScreenshot(Request $request, string $slug): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $path = $this->themes->screenshotPath($slug);
+
+        if ($path === null || !is_file($path)) {
+            return new Response('Screenshot not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+
+        $bytes = file_get_contents($path);
+
+        if ($bytes === false) {
+            return new Response('Screenshot could not be read.', 500, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+
+        $contentType = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'avif' => 'image/avif',
+            'svg' => 'image/svg+xml',
+            default => 'application/octet-stream',
+        };
+
+        return new Response($bytes, 200, ['Content-Type' => $contentType]);
     }
 
     private function requireAuth(): ?Response

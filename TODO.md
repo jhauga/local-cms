@@ -17,6 +17,9 @@
   - [x] Add the first individual CMS adapter: Drupal (theme + module scaffold via `port-cms/drupal/`)
   - [ ] Add the next CMS adapter (Joomla, Ghost, or Grav) one at a time
 - [ ] Expand the built-in markdown template catalog from 2 defaults to 4 seeded examples
+- [x] Add the `local-builder` theme: a Bootstrap-based, page-builder-ready variation with search, sidebar, and 404 templates
+- [x] Add an admin `Themes` screen to switch the active theme and browse/install WordPress.org themes
+  - [x] Extend the Drupal port adapter to port optional theme templates (search, sidebar, 404) via a DRY emit-when-present map
 
 ## Major
 
@@ -35,9 +38,11 @@
 - [ ] Add admin list badges for `marked.js`, Markdown Math, and template-enabled content
 - [ ] Keep slug auto-generation active only until the slug is manually edited
 - [ ] Seed one demo page and one demo post that exercise every built-in template preset
+- [x] Add a Admin sidebar item `Themes` where installed, or local themes can be changed.
 
 ## Patch
 
+- [x] Add a verbose template that works with page builders
 - [ ] Normalize `defaultFormat` casing before config merge
 - [ ] Ignore unsupported `defaultFormat` values and fall back cleanly to `markdown`
 - [ ] Prevent duplicate template names with a field-level validation error

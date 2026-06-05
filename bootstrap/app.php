@@ -16,6 +16,8 @@ use Cms\Repositories\ContentRepository;
 use Cms\Security\Auth;
 use Cms\Security\Session;
 use Cms\Support\MarkdownTemplateCatalog;
+use Cms\Support\ThemeCatalog;
+use Cms\Support\WordPressThemeDirectory;
 
 $rootPath = dirname(__DIR__);
 
@@ -33,12 +35,47 @@ $contentRepository = new ContentRepository(Database::connection());
 $adminRepository = new AdminRepository(Database::connection());
 $auth = new Auth($adminRepository);
 $adminView = new AdminView($rootPath);
-$adminController = new AdminController($config, $adminView, $adminRepository, $auth);
-$theme = new Theme(
-    $rootPath,
-    (string) $config->get('app.theme.name', 'default'),
-    (string) $config->get('app.theme.media', 'img')
-);
+$themeCatalog = new ThemeCatalog($rootPath);
+$wordPressThemeDirectory = new WordPressThemeDirectory($rootPath);
+$adminController = new AdminController($config, $adminView, $adminRepository, $auth, $themeCatalog, $wordPressThemeDirectory);
+$configuredTheme = (string) $config->get('app.theme.name', 'default');
+$themeMedia = (string) $config->get('app.theme.media', 'img');
+
+// Constructing a theme loads its functions.php. A foreign WordPress theme (for
+// example one installed from the WordPress.org directory) may call exit()/die()
+// when WordPress is absent, terminating the process uncatchably, or fatal on an
+// undefined WordPress-core API. Neither can be guarded with try/catch around the
+// construction. So the configured theme is gated on the static style.css runtime
+// marker first, and only constructed when it is marked compatible; the default
+// theme is always compatible. A try/catch remains as a secondary net for a
+// marked theme that still fails with a catchable error. On any fallback, when
+// the selection came from config.json (not the APP_THEME override), heal it back
+// to the default so the site stays reachable and the failure does not repeat.
+$effectiveTheme = ($configuredTheme === 'default' || $themeCatalog->isLocalRuntimeCompatible($configuredTheme))
+    ? $configuredTheme
+    : 'default';
+$themeFellBack = $effectiveTheme !== $configuredTheme;
+
+try {
+    $theme = new Theme($rootPath, $effectiveTheme, $themeMedia);
+} catch (Throwable $themeError) {
+    $theme = new Theme($rootPath, 'default', $themeMedia);
+    $themeFellBack = $themeFellBack || $effectiveTheme !== 'default';
+}
+
+if ($themeFellBack && $configuredTheme !== 'default' && trim((string) Env::get('APP_THEME', '')) === '') {
+    try {
+        $themeCatalog->activate('default');
+    } catch (Throwable) {
+        // If config.json cannot be rewritten, the runtime fallback above is still
+        // in effect, so the site keeps working with the default theme.
+    }
+
+    Session::flash('error', sprintf(
+        'The "%s" theme is not compatible with the local runtime and was reset to the default theme. WordPress.org themes are available for export and porting, not for rendering in the local runtime.',
+        $configuredTheme
+    ));
+}
 $router = new Router();
 
 $sharedData = static function (string $currentPath) use ($contentRepository, $config, $theme): array {
@@ -263,6 +300,26 @@ $router->get('/admin/templating', static function (Request $request) use ($admin
 
 $router->post('/admin/templating', static function (Request $request) use ($adminController): Response {
     return $adminController->updateTemplating($request);
+});
+
+$router->get('/admin/themes', static function (Request $request) use ($adminController): Response {
+    return $adminController->themesForm($request);
+});
+
+$router->get('/admin/themes/browse.json', static function (Request $request) use ($adminController): Response {
+    return $adminController->themesBrowseJson($request);
+});
+
+$router->post('/admin/themes/activate', static function (Request $request) use ($adminController): Response {
+    return $adminController->activateTheme($request);
+});
+
+$router->post('/admin/themes/install', static function (Request $request) use ($adminController): Response {
+    return $adminController->installTheme($request);
+});
+
+$router->get('/admin/themes/{slug}/screenshot', static function (Request $request, array $parameters) use ($adminController): Response {
+    return $adminController->themeScreenshot($request, (string) ($parameters['slug'] ?? ''));
 });
 
 $router->get('/', static function (Request $request) use ($contentRepository, $sharedData, $theme, $config): Response {
