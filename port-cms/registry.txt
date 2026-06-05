@@ -1,0 +1,15 @@
+# port-cms registry - supported target CMS platforms (one name per line).
+#
+# This is the single source of truth shared by port-cms.bat and port-cms.sh.
+# To register a new CMS, add its name below. To teach port-cms how that CMS
+# structures a theme/plugin, drop an adapter hook at:
+#     port-cms/<name>/transform.sh    (Linux/macOS)
+#     port-cms/<name>/transform.bat   (Windows)
+# Without an adapter, the staged source is packaged as-is.
+#
+# Lines starting with '#' and blank lines are ignored.
+# Names are matched case-insensitively (so "DrUpAL" resolves to "drupal").
+drupal
+joomla
+ghost
+grav

@@ -32,6 +32,7 @@ The current scaffold includes a public entry point, environment and config loadi
 - WordPress-ready default theme: the same templates render inside a stock WordPress install, resolving taxonomy terms, excerpts, and permalinks through helpers that detect the runtime
 - `plugins/` workspace for building and testing CMS plugins before export, including the staple `Local CMS Markdown` WordPress plugin
 - Cross-platform packaging scripts, `export.bat` and `export.sh`, that zip a theme or plugin for deployment
+- Cross-platform porting scripts, `port-cms.bat` and `port-cms.sh`, that stage a theme or plugin for other CMS platforms via a registry of targets and per-CMS adapter hooks
 
 ## Project Structure
 
@@ -49,6 +50,9 @@ storage/database/    SQLite database file location
 themes/default/      Default frontend theme
 export.bat           Theme/plugin packaging (Windows)
 export.sh            Theme/plugin packaging (Linux/macOS)
+port-cms.bat         Port a theme/plugin to another CMS (Windows)
+port-cms.sh          Port a theme/plugin to another CMS (Linux/macOS)
+port-cms/            CMS registry and per-CMS adapter hooks
 ```
 
 The default theme now also includes `template-parts/` partials and a starter `theme.json` file to make the next WordPress extraction step more mechanical.
@@ -241,6 +245,28 @@ Imported into WordPress, the default theme renders pages, posts, archives, and t
 ### Local CMS Markdown plugin
 
 `plugins/local-cms-markdown/` packages the Markdown engine (`convert.js` and `markdown.css`) as a stand-alone WordPress plugin. After activation, a `Local CMS MD` item in the admin sidebar opens a `Templating` screen for reusable HTML wrapper snippets — the WordPress counterpart of the admin `Templating` page. Render a whole post or page by enabling `Render this content as Markdown` in the editor, or render an inline snippet with the `[localcms_markdown]` shortcode. See [plugins/README.md](plugins/README.md) for the full workflow.
+
+## Porting to other CMS platforms
+
+Beyond WordPress, the same staged theme and plugin can be ported toward other content management systems with the `port-cms` script for the current platform:
+
+```powershell
+port-cms --list
+port-cms drupal themes/default
+port-cms drupal plugin/local-cms-markdown
+```
+
+```bash
+./port-cms.sh --list
+./port-cms.sh drupal themes/default
+./port-cms.sh drupal plugin/local-cms-markdown
+```
+
+The CMS target is case-insensitive (`DrUpAL` resolves to `drupal`), and the `tool/name` argument accepts singular or plural (`theme`/`themes`, `plugin`/`plugins`). Each run stages a clean copy under `_port-<tool>/<cms>/<slug>/`, applies that CMS's adapter when one exists, and writes an OS-appropriate archive beside it — `<slug>.zip` on Windows and `<slug>.tar.gz` on Linux/macOS. As with export, the `default` theme/plugin maps to the `local-cms` slug.
+
+Supported targets live in [port-cms/registry.txt](port-cms/registry.txt), and each CMS can ship an optional `port-cms/<cms>/transform.{sh,bat}` adapter that rewrites the staged files into that platform's conventions. New platforms are added one at a time — see [port-cms/README.md](port-cms/README.md) for the adapter contract.
+
+**Drupal** is the first implemented adapter. Porting to `drupal` scaffolds a Drupal 9/10/11 theme or module — generating the `<machine>.info.yml`, `<machine>.libraries.yml`, and (for themes) a `<machine>.theme` plus Twig templates that preserve the original WordPress class names so the ported `style.css` applies directly, or (for plugins) a `<machine>.module`. It relocates assets to Drupal's conventional folders (`css/`, `js/`), lifts the theme's inline footer script into a JS library, and preserves the original WordPress files under `_wordpress-source/` for reference. The adapter is written in PHP, so it requires PHP on the `PATH`. See [port-cms/drupal/README.md](port-cms/drupal/README.md) for the full output and the manual steps that remain.
 
 ## Markdown Pipeline
 

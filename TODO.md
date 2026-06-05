@@ -13,6 +13,9 @@
 - [x] Add a `plugins/` workspace and the `Local CMS Markdown` WordPress plugin
   - [x] Admin `Templating` screen and `[localcms_markdown]` shortcode
 - [x] Add cross-platform `export.bat` and `export.sh` packaging scripts
+- [x] Add cross-platform `port-cms.bat` and `port-cms.sh` porting base with a CMS registry and per-CMS adapter hooks
+  - [x] Add the first individual CMS adapter: Drupal (theme + module scaffold via `port-cms/drupal/`)
+  - [ ] Add the next CMS adapter (Joomla, Ghost, or Grav) one at a time
 - [ ] Expand the built-in markdown template catalog from 2 defaults to 4 seeded examples
 
 ## Major
