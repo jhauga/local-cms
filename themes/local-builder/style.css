@@ -336,6 +336,10 @@ img.logo {
     color: #eef4f4;
 }
 
+.hero-card a.term-pill {
+    color: #2F4F4F;
+}
+
 .feature-list {
     margin: 0.5rem 0 0;
     padding-left: 1.1rem;

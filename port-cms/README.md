@@ -46,6 +46,41 @@ beside it:
 Both `_port-themes/` and `_port-plugins/` are gitignored; the scripts also add
 the entry on first run if it is missing.
 
+## Inbound: porting a WordPress theme into Local CMS
+
+The `local-cms` target reverses the flow. Instead of staging a Local CMS theme
+for a foreign platform, it pulls a stock **WordPress theme** into this repo and
+makes it runtime-compatible:
+
+```bash
+# Windows
+port-cms local-cms themes/twentytwentyone
+
+# Linux/macOS
+./port-cms.sh local-cms themes/twentytwentyone
+```
+
+`port-cms` stages a clean copy, runs the
+[local-cms adapter](local-cms/README.md) to verify the theme's license permits
+porting, stamp the `Local CMS Runtime: compatible` marker, neutralize the
+WordPress-only exit guards, and write a `LICENSE_NOTE.txt`, then asks before
+writing back under `themes/`:
+
+```
+overwrite - y or n?
+```
+
+- `y` &rarr; overwrites `themes/<name>` in place
+- `n` &rarr; writes a converted copy to `themes/port-<name>`, leaving the original
+
+The ported theme renders against a broad WordPress compatibility layer, so a
+stock classic theme that uses common template tags and theme-setup hooks works
+without manual edits. The adapter refuses to port a theme whose license forbids
+modifying the source (no-derivatives or proprietary) or cannot be determined,
+and aborts without touching `themes/` if the source is not a portable WordPress
+theme (no `style.css`, missing `Theme Name` header, or no `index.php` base
+template). The adapter is written in PHP, so it requires PHP on the `PATH`.
+
 ## Adding a CMS
 
 1. Add the CMS name to [registry.txt](registry.txt) (one per line).

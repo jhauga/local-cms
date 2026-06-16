@@ -16,6 +16,7 @@ use Cms\Repositories\ContentRepository;
 use Cms\Security\Auth;
 use Cms\Security\Session;
 use Cms\Support\MarkdownTemplateCatalog;
+use Cms\Support\PluginCatalog;
 use Cms\Support\ThemeCatalog;
 use Cms\Support\WordPressThemeDirectory;
 
@@ -37,7 +38,8 @@ $auth = new Auth($adminRepository);
 $adminView = new AdminView($rootPath);
 $themeCatalog = new ThemeCatalog($rootPath);
 $wordPressThemeDirectory = new WordPressThemeDirectory($rootPath);
-$adminController = new AdminController($config, $adminView, $adminRepository, $auth, $themeCatalog, $wordPressThemeDirectory);
+$pluginCatalog = new PluginCatalog($rootPath);
+$adminController = new AdminController($config, $adminView, $adminRepository, $auth, $themeCatalog, $wordPressThemeDirectory, $pluginCatalog, $rootPath);
 $configuredTheme = (string) $config->get('app.theme.name', 'default');
 $themeMedia = (string) $config->get('app.theme.media', 'img');
 
@@ -320,6 +322,106 @@ $router->post('/admin/themes/install', static function (Request $request) use ($
 
 $router->get('/admin/themes/{slug}/screenshot', static function (Request $request, array $parameters) use ($adminController): Response {
     return $adminController->themeScreenshot($request, (string) ($parameters['slug'] ?? ''));
+});
+
+// Live preview of an installed-but-inactive theme. Renders the front page with
+// the requested theme without activating it. The theme function bridge keeps
+// even a foreign WordPress theme from fataling, so a preview is always safe to
+// attempt; its own assets are served through the preview-asset route below so
+// its styling renders rather than the active theme's.
+$router->get('/admin/themes/{slug}/preview', static function (Request $request, array $parameters) use ($auth, $rootPath, $themeMedia, $contentRepository, $config, $themeCatalog): Response {
+    if (!$auth->check()) {
+        return Response::redirect('/admin');
+    }
+
+    $slug = (string) ($parameters['slug'] ?? '');
+
+    if (!$themeCatalog->exists($slug)) {
+        return new Response('That theme is not installed.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    try {
+        $previewTheme = new Theme($rootPath, $slug, $themeMedia);
+    } catch (Throwable) {
+        return new Response('This theme could not be loaded for preview.', 500, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $assetBase = '/admin/themes/' . rawurlencode($slug) . '/preview-asset';
+    $settings = $contentRepository->getSettings();
+    $siteName = (string) ($settings['site_name'] ?? $config->get('app.name', 'Local CMS'));
+    $siteTagline = (string) ($settings['site_tagline'] ?? $config->get('app.tagline', ''));
+    $homePage = $contentRepository->findPageBySlug('home');
+
+    $data = [
+        'siteName' => $siteName,
+        'siteTagline' => $siteTagline,
+        'homeUrl' => '/',
+        'navigation' => [
+            ['label' => 'Home', 'url' => '/', 'active' => true],
+            ['label' => 'Posts', 'url' => '/posts', 'active' => false],
+        ],
+        'currentPath' => '/',
+        'stylesheetUrl' => $assetBase . '/style.css',
+        'themeAssetBaseUrl' => $assetBase,
+        'themeMediaDirectory' => $themeMedia,
+        'categories' => $contentRepository->termsByTaxonomy('category'),
+        'heroPage' => $homePage,
+        'posts' => $contentRepository->latestPosts(3),
+        'intro' => (string) ($homePage['excerpt'] ?? ''),
+        'archiveTitle' => 'Posts',
+        'archiveDescription' => '',
+    ];
+
+    try {
+        $body = $previewTheme->render('index', $data, ['pageTitle' => $siteName . ' — theme preview']);
+    } catch (Throwable) {
+        return new Response('This theme could not be rendered for preview.', 500, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $banner = '<div style="position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#111;color:#fff;'
+        . 'font:600 13px/1.4 system-ui,sans-serif;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center">'
+        . 'Previewing &ldquo;' . htmlspecialchars($slug, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '&rdquo; — not the active theme.'
+        . ' <a href="/admin/themes" style="color:#7fd1ff">Back to Themes</a></div>';
+
+    return new Response($body . $banner);
+});
+
+// Serve a previewed theme's own assets (CSS, images, JS) so its preview renders
+// with its real styling instead of the active theme's.
+$router->get('/admin/themes/{slug}/preview-asset/{assetPath*}', static function (Request $request, array $parameters) use ($auth, $rootPath, $themeMedia, $themeCatalog): Response {
+    if (!$auth->check()) {
+        return new Response('Forbidden.', 403, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    $slug = (string) ($parameters['slug'] ?? '');
+
+    if (!$themeCatalog->exists($slug)) {
+        return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    try {
+        $previewTheme = new Theme($rootPath, $slug, $themeMedia);
+    } catch (Throwable) {
+        return new Response('Asset not found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    return $previewTheme->assetResponse((string) ($parameters['assetPath'] ?? ''));
+});
+
+$router->post('/admin/themes/{slug}/delete', static function (Request $request, array $parameters) use ($adminController): Response {
+    return $adminController->deleteTheme($request, (string) ($parameters['slug'] ?? ''));
+});
+
+$router->get('/admin/plugins', static function (Request $request) use ($adminController): Response {
+    return $adminController->pluginsForm($request);
+});
+
+$router->get('/admin/theme-bridge', static function (Request $request) use ($adminController): Response {
+    return $adminController->themeBridgeForm($request);
+});
+
+$router->post('/admin/theme-bridge', static function (Request $request) use ($adminController): Response {
+    return $adminController->updateThemeFallbacks($request);
 });
 
 $router->get('/', static function (Request $request) use ($contentRepository, $sharedData, $theme, $config): Response {

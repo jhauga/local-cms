@@ -68,6 +68,15 @@ $activeBrowse = (string) ($directory['browse'] ?? 'popular');
                         <?php else: ?>
                             <span class="theme-incompatible-label" title="This theme relies on the WordPress runtime and cannot be rendered by the local runtime.">Export &amp; port only</span>
                         <?php endif; ?>
+                        <?php if (!$isActive): ?>
+                            <a class="ghost-button" href="/admin/themes/<?= rawurlencode((string) $theme['slug']) ?>/preview" target="_blank" rel="noreferrer" title="Render the front page with this theme without activating it.">Preview</a>
+                        <?php endif; ?>
+                        <?php if (!$isActive && empty($theme['protected'])): ?>
+                            <form method="post" action="/admin/themes/<?= rawurlencode((string) $theme['slug']) ?>/delete" onsubmit="return confirm('Delete <?= htmlspecialchars(addslashes((string) $theme['name']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>? This cannot be undone.');">
+                                <input type="hidden" name="_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                                <button class="danger-button" type="submit">Delete</button>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 </div>
             </article>

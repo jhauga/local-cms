@@ -13,7 +13,10 @@ use Cms\Security\Csrf;
 use Cms\Security\Session;
 use Cms\Support\Markdown;
 use Cms\Support\MarkdownTemplateCatalog;
+use Cms\Support\PluginCatalog;
 use Cms\Support\ThemeCatalog;
+use Cms\Support\ThemeFallbackRegistry;
+use Cms\Support\ThemeFunctionBridge;
 use Cms\Support\Uploads;
 use Cms\Support\WordPressThemeDirectory;
 use DateTimeImmutable;
@@ -27,6 +30,8 @@ final class AdminController
         private Auth $auth,
         private ThemeCatalog $themes,
         private WordPressThemeDirectory $themeDirectory,
+        private PluginCatalog $plugins,
+        private string $rootPath = '',
     ) {
     }
 
@@ -467,6 +472,7 @@ final class AdminController
 
         foreach ($installed as &$installedTheme) {
             $installedTheme['compatible'] = $this->themes->isLocalRuntimeCompatible((string) $installedTheme['slug']);
+            $installedTheme['protected']  = $this->themes->isProtected((string) $installedTheme['slug']);
         }
         unset($installedTheme);
 
@@ -605,6 +611,119 @@ final class AdminController
             200,
             ['Content-Type' => 'application/json; charset=UTF-8']
         );
+    }
+
+    public function deleteTheme(Request $request, string $slug): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        if (!$this->validateCsrf($request)) {
+            Session::flash('error', 'Invalid security token.');
+
+            return Response::redirect('/admin/themes');
+        }
+
+        $activeTheme = (string) $this->config->get('app.theme.name', 'default');
+
+        try {
+            $theme = $this->themes->find($slug);
+            $name  = $theme !== null ? (string) $theme['name'] : $slug;
+            $this->themes->delete($slug, $activeTheme);
+            Session::flash('notice', '"' . $name . '" has been deleted.');
+        } catch (\RuntimeException $exception) {
+            Session::flash('error', $exception->getMessage());
+        }
+
+        return Response::redirect('/admin/themes');
+    }
+
+    public function themeBridgeForm(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $activeTheme = (string) $this->config->get('app.theme.name', 'default');
+        $registry = ThemeFallbackRegistry::load($this->rootPath);
+        $themePath = rtrim($this->rootPath, '/\\') . '/themes/' . $activeTheme;
+
+        $detected = is_dir($themePath)
+            ? ThemeFunctionBridge::report($themePath, $this->rootPath, $registry)
+            : [];
+
+        $body = $this->view->render('theme-bridge', $this->baseData([
+            'pageTitle'     => 'Theme Bridge',
+            'currentSection' => 'theme-bridge',
+            'activeTheme'   => $activeTheme,
+            'detected'      => $detected,
+            'overrides'     => $registry->overrides(),
+            'kinds'         => ThemeFallbackRegistry::KINDS,
+        ]));
+
+        return new Response($body);
+    }
+
+    public function updateThemeFallbacks(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        if (!$this->validateCsrf($request)) {
+            Session::flash('error', 'Invalid security token.');
+
+            return Response::redirect('/admin/theme-bridge');
+        }
+
+        $names = $request->post('fn_names', []);
+        $kinds = $request->post('fn_kinds', []);
+        $names = is_array($names) ? $names : [];
+        $kinds = is_array($kinds) ? $kinds : [];
+
+        $registry = ThemeFallbackRegistry::load($this->rootPath);
+
+        foreach ($names as $index => $name) {
+            $name = trim((string) $name);
+
+            if ($name === '') {
+                continue;
+            }
+
+            $kind = (string) ($kinds[$index] ?? '');
+
+            // An empty kind means "use the smart default" — drop any override.
+            if ($kind === '') {
+                $registry->removeOverride($name);
+            } elseif (in_array($kind, ThemeFallbackRegistry::KINDS, true)) {
+                $registry->setOverride($name, ['kind' => $kind]);
+            }
+        }
+
+        $saved = $registry->save($this->rootPath);
+
+        Session::flash(
+            $saved ? 'notice' : 'error',
+            $saved ? 'Theme fallback overrides saved.' : 'Could not write theme-fallbacks.json.'
+        );
+
+        return Response::redirect('/admin/theme-bridge');
+    }
+
+    public function pluginsForm(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $body = $this->view->render('plugins', $this->baseData([
+            'pageTitle'      => 'Plugins',
+            'currentSection' => 'plugins',
+            'plugins'        => $this->plugins->installed(),
+        ]));
+
+        return new Response($body);
     }
 
     public function themeScreenshot(Request $request, string $slug): Response

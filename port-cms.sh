@@ -25,6 +25,15 @@
 #  Output (Linux/macOS): _port-<tool>/<cms>/<slug>.tar.gz
 #  The default theme/plugin name maps to the "local-cms" slug, since most CMS
 #  already ship a theme named "default".
+#
+#  Inbound: when <cms> is "local-cms" the flow reverses. Instead of staging a
+#  Local CMS theme for a foreign platform, it ports a stock WordPress theme
+#  (e.g. themes/twentytwentyone) into a Local CMS-compatible theme. If the
+#  source cannot be ported the adapter reports the reason and aborts; otherwise
+#  it prompts "overwrite - y or n" before writing back under themes/ ("y"
+#  overwrites themes/<name>, "n" writes themes/port-<name>).
+#
+#    ./port-cms.sh local-cms themes/twentytwentyone
 # ============================================================================
 
 set -euo pipefail
@@ -37,6 +46,7 @@ usage() {
   echo "Usage: ./port-cms.sh <cms> <tool/name>"
   echo "  ./port-cms.sh drupal themes/default              Port the default theme to Drupal"
   echo "  ./port-cms.sh drupal plugin/local-cms-markdown   Port the markdown plugin to Drupal"
+  echo "  ./port-cms.sh local-cms themes/twentytwentyone   Port a WordPress theme into Local CMS"
   echo "  ./port-cms.sh -l, --list                         List available CMS targets"
   echo "  ./port-cms.sh -h, --help                         Show this help"
 }
@@ -47,6 +57,65 @@ clean_line() {
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"
+}
+
+# Port a stock WordPress theme INTO a Local CMS-compatible theme.
+#
+# Stages a clean copy of themes/<name>, runs the Local CMS adapter to make it
+# runtime-compatible, then -- only after the operator confirms -- writes it back
+# under themes/. "y" overwrites themes/<name>; anything else writes
+# themes/port-<name> and leaves the original in place.
+port_into_local_cms() {
+  local tool="$1" name="$2" src="$3"
+
+  if [ "$tool" != "themes" ]; then
+    echo "[port-cms] Porting into Local CMS supports themes only (got \"$tool\")." >&2
+    exit 1
+  fi
+
+  local hook="port-cms/local-cms/transform.sh"
+  if [ ! -f "$hook" ]; then
+    echo "[port-cms] Local CMS adapter missing: $hook" >&2
+    exit 1
+  fi
+
+  # Ensure the staging root is gitignored.
+  local out_root="_port-themes"
+  if ! grep -qi "$out_root" .gitignore 2>/dev/null; then
+    echo "$out_root/" >> .gitignore
+  fi
+
+  # Stage a clean copy of the WordPress theme for transformation.
+  local work="$out_root/local-cms/$name"
+  rm -rf "$work"
+  mkdir -p "$work"
+  echo "[port-cms] Staging $src -> $work"
+  cp -R "$src/." "$work/"
+
+  # Convert in place; the adapter prints a custom error and exits non-zero when
+  # the source cannot be made compatible.
+  echo "[port-cms] Porting $name to Local CMS: $hook"
+  if ! bash "$hook" "$tool" "$name" "$work"; then
+    echo "[port-cms] Could not port \"$name\" to Local CMS; see the reason above." >&2
+    exit 1
+  fi
+
+  # Confirm the destination before touching themes/.
+  printf 'overwrite - y or n? '
+  local answer=""
+  read -r answer || true
+  local dest
+  case "$answer" in
+    y|Y) dest="themes/$name" ;;
+    *)   dest="themes/port-$name" ;;
+  esac
+
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  echo "[port-cms] Writing ported theme -> $dest"
+  cp -R "$work/." "$dest/"
+
+  echo "[port-cms] Done: $dest"
 }
 
 arg1="${1:-}"
@@ -123,6 +192,13 @@ src="$tool/$name"
 if [ ! -d "$src" ]; then
   echo "[port-cms] Source folder not found: $src" >&2
   exit 1
+fi
+
+# Inbound target: bring a WordPress theme INTO Local CMS form instead of
+# staging a Local CMS theme for a foreign platform.
+if [ "$cms" = "local-cms" ]; then
+  port_into_local_cms "$tool" "$name" "$src"
+  exit 0
 fi
 
 # The "default" theme/plugin ships under the "local-cms" slug.

@@ -37,6 +37,8 @@ declare(strict_types=1);
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'taxonomies' ? ' is-active' : '' ?>" href="/admin/taxonomies">Taxonomies</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'templating' ? ' is-active' : '' ?>" href="/admin/templating">Templating</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'themes' ? ' is-active' : '' ?>" href="/admin/themes">Themes</a>
+                        <a class="admin-nav-link<?= ($currentSection ?? '') === 'theme-bridge' ? ' is-active' : '' ?>" href="/admin/theme-bridge">Theme Bridge</a>
+                        <a class="admin-nav-link<?= ($currentSection ?? '') === 'plugins' ? ' is-active' : '' ?>" href="/admin/plugins">Plugins</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'settings' ? ' is-active' : '' ?>" href="/admin/settings">Settings</a>
                         <a class="admin-nav-link" href="/" target="_blank" rel="noreferrer">Open site</a>
                     </nav>

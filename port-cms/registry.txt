@@ -9,6 +9,11 @@
 #
 # Lines starting with '#' and blank lines are ignored.
 # Names are matched case-insensitively (so "DrUpAL" resolves to "drupal").
+#
+# "local-cms" is the inbound target: instead of staging a Local CMS theme for an
+# external platform, it ports a stock WordPress theme into a Local CMS-compatible
+# theme written back under themes/. See port-cms/local-cms/README.md.
+local-cms
 drupal
 joomla
 ghost

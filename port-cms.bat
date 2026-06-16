@@ -26,6 +26,15 @@ REM
 REM  Output (Windows): _port-<tool>\<cms>\<slug>.zip
 REM  The default theme/plugin name maps to the "local-cms" slug, since most CMS
 REM  already ship a theme named "default".
+REM
+REM  Inbound: when <cms> is "local-cms" the flow reverses. Instead of staging a
+REM  Local CMS theme for a foreign platform, it ports a stock WordPress theme
+REM  (e.g. themes/twentytwentyone) into a Local CMS-compatible theme. If the
+REM  source cannot be ported the adapter reports the reason and aborts;
+REM  otherwise it prompts "overwrite - y or n" before writing back under themes\
+REM  ("y" overwrites themes\<name>, "n" writes themes\port-<name>).
+REM
+REM    port-cms local-cms themes/twentytwentyone   Port a WordPress theme in
 REM ===========================================================================
 
 cd /d "%~dp0"
@@ -90,6 +99,10 @@ if not exist "%_src%\" (
   exit /b 1
 )
 
+REM Inbound target: bring a WordPress theme INTO Local CMS form instead of
+REM staging a Local CMS theme for a foreign platform.
+if /i "%_cms%"=="local-cms" goto :inbound
+
 REM The "default" theme/plugin ships under the "local-cms" slug.
 set "_slug=%_name%"
 if /i "%_name%"=="default" set "_slug=local-cms"
@@ -135,6 +148,63 @@ if errorlevel 1 (
 echo [port-cms] Done: %_zip%
 exit /b 0
 
+:inbound
+REM ===========================================================================
+REM  Inbound port: bring a stock WordPress theme INTO Local CMS form.
+REM
+REM  Stages a clean copy of themes\<name>, runs the Local CMS adapter to make it
+REM  runtime-compatible, and -- only after the operator confirms -- writes the
+REM  result back under themes\. Overwrite "y" replaces themes\<name> in place;
+REM  "n" writes a converted copy to themes\port-<name> and leaves the original.
+REM ===========================================================================
+if /i not "%_tool%"=="themes" (
+  echo [port-cms] Porting into Local CMS supports themes only ^(got "%_tool%"^).
+  exit /b 1
+)
+
+set "_hook=port-cms\local-cms\transform.bat"
+if not exist "%_hook%" (
+  echo [port-cms] Local CMS adapter missing: %_hook%
+  exit /b 1
+)
+
+REM Ensure the staging root is gitignored.
+set "_outRoot=_port-themes"
+findstr /i /c:"%_outRoot%" .gitignore >nul 2>nul || echo %_outRoot%/>>.gitignore
+
+REM Stage a clean copy of the WordPress theme for transformation.
+set "_work=%_outRoot%\local-cms\%_name%"
+if exist "%_work%\" rmdir /s /q "%_work%"
+mkdir "%_work%"
+echo [port-cms] Staging %_src% -^> %_work%
+xcopy "%_src%\*" "%_work%\" /e /i /q /y >nul
+
+REM Convert the staged copy in place; the adapter throws a custom error and
+REM exits non-zero when the source cannot be made compatible.
+echo [port-cms] Porting %_name% to Local CMS: %_hook%
+call "%_hook%" "%_tool%" "%_name%" "%_work%"
+if errorlevel 1 (
+  echo [port-cms] Could not port "%_name%" to Local CMS; see the reason above.
+  exit /b 1
+)
+
+REM Confirm the destination before touching themes\.
+set "_overwrite="
+set /p "_overwrite=overwrite - y or n? "
+if /i "%_overwrite%"=="y" (
+  set "_dest=themes\%_name%"
+) else (
+  set "_dest=themes\port-%_name%"
+)
+
+if exist "%_dest%\" rmdir /s /q "%_dest%"
+mkdir "%_dest%"
+echo [port-cms] Writing ported theme -^> %_dest%
+xcopy "%_work%\*" "%_dest%\" /e /i /q /y >nul
+
+echo [port-cms] Done: %_dest%
+exit /b 0
+
 :list
 echo Available CMS targets for porting:
 for /f "usebackq eol=# tokens=* delims= " %%c in ("%_registry%") do (
@@ -149,6 +219,7 @@ exit /b 0
 echo Usage: port-cms ^<cms^> ^<tool/name^>
 echo   port-cms drupal themes/default              Port the default theme to Drupal
 echo   port-cms drupal plugin/local-cms-markdown   Port the markdown plugin to Drupal
+echo   port-cms local-cms themes/twentytwentyone   Port a WordPress theme into Local CMS
 echo   port-cms -l, --list                         List available CMS targets
 echo   port-cms -h, --help                         Show this help
 exit /b 0

@@ -83,19 +83,62 @@ final class ThemeCatalog
         $header = $this->parseHeader((string) @file_get_contents($dir . '/style.css'));
 
         return [
-            'slug' => $slug,
-            'name' => $this->firstNonEmpty($header['Theme Name'] ?? '', $slug),
+            'slug'      => $slug,
+            'name'      => $this->firstNonEmpty($header['Theme Name'] ?? '', $slug),
             'description' => trim($header['Description'] ?? ''),
-            'version' => trim($header['Version'] ?? ''),
-            'author' => trim($header['Author'] ?? ''),
+            'version'   => trim($header['Version'] ?? ''),
+            'author'    => trim($header['Author'] ?? ''),
             'screenshot' => $this->screenshotName($slug),
-            'runtime' => trim($header['Local CMS Runtime'] ?? ''),
+            'runtime'   => trim($header['Local CMS Runtime'] ?? ''),
+            'native'    => $this->isLocalCmsNative($dir, $header),
         ];
     }
 
     public function exists(string $slug): bool
     {
         return $this->find($slug) !== null;
+    }
+
+    /**
+     * Whether a theme was authored for this runtime (native) or ported from WordPress.
+     *
+     * A theme is considered native when ALL of the following hold:
+     *  - Its style.css header declares "Local CMS Runtime: native" OR "origin: local-cms", OR
+     *  - Its functions.php uses `declare(strict_types=1)` (a Local CMS convention), AND
+     *  - It does NOT contain any "Ported by port-cms" or "LICENSE_NOTE.txt" marker.
+     *
+     * Native themes can rely on Local CMS data shapes directly; ported themes go
+     * through the WordPress compatibility shims.
+     *
+     * @param array<string, string> $header Already-parsed style.css header.
+     */
+    public function isLocalCmsNative(string $themeDir, array $header = []): bool
+    {
+        // Explicit "native" marker in the style.css header.
+        $runtimeHeader = strtolower(trim($header['Local CMS Runtime'] ?? ''));
+        if ($runtimeHeader === 'native') {
+            return true;
+        }
+        $originHeader = strtolower(trim($header['Local CMS Origin'] ?? ''));
+        if (in_array($originHeader, ['local-cms', 'native', 'local'], true)) {
+            return true;
+        }
+
+        // A LICENSE_NOTE.txt is written by the port-cms adapter → ported theme.
+        if (is_file($themeDir . '/LICENSE_NOTE.txt')) {
+            return false;
+        }
+
+        // functions.php with strict_types → likely authored for this repo.
+        $functionsPath = $themeDir . '/functions.php';
+        if (is_file($functionsPath)) {
+            $head = (string) substr((string) file_get_contents($functionsPath), 0, 1024);
+            if (str_contains($head, 'declare(strict_types=1)')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -189,6 +232,105 @@ final class ThemeCatalog
 
         if ($encoded === false || file_put_contents($configPath, $encoded . "\n") === false) {
             throw new RuntimeException('The theme selection could not be saved to config.json.');
+        }
+    }
+
+    /**
+     * Whether a theme is protected from deletion.
+     *
+     * A theme is protected when its directory appears in .gitignore as an
+     * explicit exception — i.e. a line matching "!themes/<slug>/" or
+     * "!themes/<slug>" — meaning it is committed to the repository. Themes
+     * installed from outside (WordPress.org downloads, ports) are not excepted
+     * and may be deleted.
+     */
+    public function isProtected(string $slug): bool
+    {
+        $slug = $this->normalizeSlug($slug);
+
+        if ($slug === null) {
+            return true;
+        }
+
+        $gitignorePath = rtrim($this->rootPath, '/\\') . '/.gitignore';
+
+        if (!is_file($gitignorePath)) {
+            return false;
+        }
+
+        $lines = file($gitignorePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        if ($lines === false) {
+            return false;
+        }
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Match "!themes/<slug>/" or "!themes/<slug>" exception patterns.
+            if (preg_match('#^!themes/' . preg_quote($slug, '#') . '/?$#i', $line) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Delete an installed theme by removing its directory from themes/.
+     *
+     * @throws RuntimeException when the theme is not installed, is protected,
+     *         is the active theme, or the directory cannot be removed.
+     */
+    public function delete(string $slug, string $activeTheme = ''): void
+    {
+        $slug = (string) $this->normalizeSlug($slug);
+
+        if (!$this->exists($slug)) {
+            throw new RuntimeException('That theme is not installed.');
+        }
+
+        if ($this->isProtected($slug)) {
+            throw new RuntimeException('That theme is part of the repository and cannot be deleted.');
+        }
+
+        if ($activeTheme !== '' && strcasecmp($slug, $activeTheme) === 0) {
+            throw new RuntimeException('The active theme cannot be deleted. Activate a different theme first.');
+        }
+
+        $dir = $this->themesPath() . '/' . $slug;
+        $this->removeDirectory($dir);
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $entries = scandir($dir);
+
+        if ($entries === false) {
+            throw new RuntimeException('Could not read the theme directory.');
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $dir . DIRECTORY_SEPARATOR . $entry;
+
+            if (is_dir($path)) {
+                $this->removeDirectory($path);
+            } else {
+                if (!unlink($path)) {
+                    throw new RuntimeException('Could not delete: ' . $path);
+                }
+            }
+        }
+
+        if (!rmdir($dir)) {
+            throw new RuntimeException('Could not remove directory: ' . $dir);
         }
     }
 

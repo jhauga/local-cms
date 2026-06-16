@@ -21,7 +21,8 @@ The current scaffold includes a public entry point, environment and config loadi
 - Page and post titles support a compact inline markdown subset for code, emphasis, strong text, strikethrough, and simple `sub`/`sup`/`ins` tags
 - Per-page and per-post Markdown renderer toggle that can lazy-load `marked.js` for richer client-side rendering when the built-in converter is not enough
 - Admin-side `Templating` screen for reusable markdown wrapper snippets stored in CMS settings instead of hardcoded client assets
-- Admin-side `Themes` screen that lists installed themes with screenshots, switches the active theme by writing `config.json`, and can browse and install themes from the public WordPress.org theme directory
+- Admin-side `Themes` screen that lists installed themes with screenshots, switches the active theme by writing `config.json`, can browse and install themes from the public WordPress.org theme directory, and offers a live **Preview** of any installed theme (including ported ones) without activating it
+- Admin-side `Theme Bridge` screen that lists the helper functions a ported theme calls but the runtime has no real implementation for, and lets each fallback behaviour be overridden and saved to `storage/theme-fallbacks.json`
 - Image uploads stored under `/uploads/` with configurable date folders, defaulting to `/uploads/YYYY/MM/`
 - Root `config.json` support for theme selection, theme media folders, content defaults, and upload date-path settings with safe fallbacks
 - Theme directory with `header.php`, `footer.php`, `index.php`, `page.php`, `single.php`, `archive.php`, `functions.php`, and `style.css`
@@ -279,6 +280,20 @@ The CMS target is case-insensitive (`DrUpAL` resolves to `drupal`), and the `too
 Supported targets live in [port-cms/registry.txt](port-cms/registry.txt), and each CMS can ship an optional `port-cms/<cms>/transform.{sh,bat}` adapter that rewrites the staged files into that platform's conventions. New platforms are added one at a time — see [port-cms/README.md](port-cms/README.md) for the adapter contract.
 
 **Drupal** is the first implemented adapter. Porting to `drupal` scaffolds a Drupal 9/10/11 theme or module — generating the `<machine>.info.yml`, `<machine>.libraries.yml`, and (for themes) a `<machine>.theme` plus Twig templates that preserve the original WordPress class names so the ported `style.css` applies directly, or (for plugins) a `<machine>.module`. It relocates assets to Drupal's conventional folders (`css/`, `js/`), lifts the theme's inline footer script into a JS library, and preserves the original WordPress files under `_wordpress-source/` for reference. Themes that ship templates beyond the core set — such as `local-builder` with its `search.php`, `sidebar.php`, and `404.php` — have those ported as well through a data-driven map that only emits when the source file is present, so the default theme is unaffected. The adapter is written in PHP, so it requires PHP on the `PATH`. See [port-cms/drupal/README.md](port-cms/drupal/README.md) for the full output and the manual steps that remain.
+
+### Inbound: porting a WordPress theme into Local CMS
+
+The `local-cms` target reverses the direction — instead of staging a Local CMS theme for a foreign platform, it pulls a stock WordPress theme into this repo and makes it runtime-compatible:
+
+```powershell
+port-cms local-cms themes/twentytwentyone
+```
+
+```bash
+./port-cms.sh local-cms themes/twentytwentyone
+```
+
+It stages a clean copy, runs the inbound adapter to verify the theme's license permits porting, stamp the `Local CMS Runtime: compatible` marker into `style.css`, neutralize the WordPress-only `defined( 'ABSPATH' ) || exit;` guards, and write a `LICENSE_NOTE.txt`, then prompts `overwrite - y or n` before writing back under `themes/` — `y` overwrites `themes/<name>` in place, `n` writes a converted copy to `themes/port-<name>`. The ported theme runs against a broad WordPress compatibility layer ([src/Support/WordPressCompat.php](src/Support/WordPressCompat.php)) plus a **theme function bridge** ([src/Support/ThemeFunctionBridge.php](src/Support/ThemeFunctionBridge.php)) that shims the theme-specific helpers and classes a theme calls but the runtime does not define — so a stock theme renders with its real templates, styling, and as many of its real functions as can be recovered, falling back safely on the rest instead of fataling on the first undefined call. Fallback behaviours are chosen by a [registry](src/Support/ThemeFallbackRegistry.php) editable from the admin `Theme Bridge` screen. A page-builder theme whose templates the runtime cannot drive has those templates replaced with minimal portable ones, and a block/FSE theme with no `index.php` has a minimal base template generated, so it still renders rather than aborting. The adapter refuses to port a theme whose license forbids modifying the source (no-derivatives or proprietary licenses) or cannot be determined, and aborts without touching `themes/` only when the source is not a WordPress theme at all (no `style.css` or missing `Theme Name` header). See [port-cms/local-cms/README.md](port-cms/local-cms/README.md) for the license allowlist, `LICENSE_NOTE.txt`, the template portability screen, and the theme function bridge.
 
 ## Markdown Pipeline
 

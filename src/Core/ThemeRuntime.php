@@ -16,6 +16,18 @@ final class ThemeRuntime
 
     private int $queryIndex = -1;
 
+    /**
+     * Header/footer parts already emitted this render, keyed by slug+name.
+     *
+     * Some ported themes call get_header()/get_footer() more than once in a
+     * single render (e.g. front-page.php calls get_header() and then includes
+     * home.php, which calls it again). WordPress would re-emit the whole header
+     * each time; here that both duplicates the <html>/<head> markup and can fatal
+     * when a header partial requires a file that defines unguarded functions. So
+     * each header/footer variant is emitted at most once per render.
+     */
+    private array $emittedParts = [];
+
     private function __construct(
         private string $themePath,
         private string $template,
@@ -28,6 +40,13 @@ final class ThemeRuntime
     public static function boot(string $themePath, string $template, array $data): void
     {
         self::$current = new self($themePath, $template, $data);
+
+        // Initialize the $wp_query global that many ported themes reference directly.
+        // This must happen after self::$current is set so WP_Query can call ThemeRuntime::data().
+        if (class_exists('WP_Query')) {
+            $GLOBALS['wp_query'] = new \WP_Query();
+            $GLOBALS['wp_the_query'] = $GLOBALS['wp_query'];
+        }
     }
 
     public static function clear(): void
@@ -94,12 +113,27 @@ final class ThemeRuntime
 
     public static function includeHeader(?string $name = null, array $args = []): void
     {
-        self::instance()->includeThemeFile('header', $name, $args);
+        self::instance()->includeUniquePart('header', $name, $args);
     }
 
     public static function includeFooter(?string $name = null, array $args = []): void
     {
-        self::instance()->includeThemeFile('footer', $name, $args);
+        self::instance()->includeUniquePart('footer', $name, $args);
+    }
+
+    /**
+     * Include a header/footer part at most once per render (see $emittedParts).
+     */
+    private function includeUniquePart(string $slug, ?string $name, array $args): void
+    {
+        $key = $slug . ':' . ($name ?? '');
+
+        if (isset($this->emittedParts[$key])) {
+            return;
+        }
+
+        $this->emittedParts[$key] = true;
+        $this->includeThemeFile($slug, $name, $args);
     }
 
     public static function includeTemplatePart(string $slug, ?string $name = null, array $args = []): void
@@ -604,5 +638,16 @@ final class ThemeRuntime
         }
 
         return $unique;
+    }
+
+    /**
+     * Whether the active theme was authored for Local CMS (native) or ported from WordPress.
+     *
+     * Reads the global seeded by Theme::loadFunctions() before functions.php runs.
+     * Templates and compat shims can use this to branch on ported-vs-native behavior.
+     */
+    public static function isNativeTheme(): bool
+    {
+        return (bool) ($GLOBALS['localcms_theme_native'] ?? false);
     }
 }
