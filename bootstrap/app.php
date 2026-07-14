@@ -264,6 +264,14 @@ $router->post('/admin/posts/{id}/delete', static function (Request $request, arr
     return $adminController->deleteContent($request, 'post', (int) ($parameters['id'] ?? 0));
 });
 
+$router->get('/admin/import', static function (Request $request) use ($adminController): Response {
+    return $adminController->importForm($request);
+});
+
+$router->post('/admin/import', static function (Request $request) use ($adminController): Response {
+    return $adminController->runImport($request);
+});
+
 $router->get('/admin/taxonomies', static function (Request $request) use ($adminController): Response {
     return $adminController->taxonomyIndex($request);
 });

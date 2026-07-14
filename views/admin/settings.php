@@ -29,6 +29,15 @@ declare(strict_types=1);
             <textarea name="site_tagline" rows="3"><?= htmlspecialchars((string) $settings['site_tagline'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
         </label>
 
+        <label class="field-group">
+            <span>Default Content Type</span>
+            <select name="default_content_type">
+                <option value="post"<?= ($settings['default_content_type'] ?? 'post') === 'post' ? ' selected' : '' ?>>Post</option>
+                <option value="page"<?= ($settings['default_content_type'] ?? 'post') === 'page' ? ' selected' : '' ?>>Page</option>
+            </select>
+        </label>
+        <p class="help-copy">Used when a running markdown import cannot resolve an item's type from its metadata or the document top-matter.</p>
+
         <button class="primary-button" type="submit">Save settings</button>
     </form>
 </section>

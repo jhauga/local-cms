@@ -394,6 +394,16 @@ final class AdminRepository
         $statement->execute(['id' => $id]);
     }
 
+    public function findContentIdBySlug(string $type, string $slug): ?int
+    {
+        $table = $this->resolveContentTable($type);
+        $statement = $this->connection->prepare("SELECT id FROM {$table} WHERE slug = :slug LIMIT 1");
+        $statement->execute(['slug' => $slug]);
+        $id = $statement->fetchColumn();
+
+        return $id === false ? null : (int) $id;
+    }
+
     public function slugExists(string $type, string $slug, ?int $excludeId = null): bool
     {
         $table = $this->resolveContentTable($type);

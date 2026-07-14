@@ -17,6 +17,7 @@ The current scaffold includes a public entry point, environment and config loadi
 - Richer content model for pages and posts: author fields, meta fields, categories, and tags
 - Archive routes for `/posts`, `/category/{slug}`, and `/tag/{slug}`
 - Local admin area that automatically uses the seeded admin identity for CRUD on pages, posts, taxonomy terms, and site settings
+- Admin-side `Import` screen that splits one running markdown document into any number of pages and posts, with reusable tag/keyword groups, per-item `metadata` blocks, defaults for missing metadata, and a dry-run preview
 - Markdown editor preview tabs in the admin area, plus an optional Markdown Math flag that injects MathJax on published pages and posts
 - Page and post titles support a compact inline markdown subset for code, emphasis, strong text, strikethrough, and simple `sub`/`sup`/`ins` tags
 - Per-page and per-post Markdown renderer toggle that can lazy-load `marked.js` for richer client-side rendering when the built-in converter is not enough
@@ -138,7 +139,8 @@ The admin area supports:
 - upload featured images into `/uploads/` with configurable date folders or keep using external image URLs
 - assign categories and tags from the content editor
 - create, edit, and delete taxonomy terms
-- update site name and tagline settings
+- import a running markdown document from the `Import` screen, as pasted text or an uploaded `.md` file, with an optional dry run
+- update site name and tagline settings, plus the default content type used when a running markdown item does not resolve a type
 - switch the active theme from the `Themes` screen, with screenshots for each installed theme, and optionally browse and install themes from the WordPress.org directory
 
 Activating a theme writes `theme.name` to `config.json` and takes effect on the next page load. When `APP_THEME` is set in `.env`, it continues to override `config.json`, and the `Themes` screen notes this so the active theme stays predictable.
@@ -224,6 +226,89 @@ The workflow:
 For project Pages sites, the workflow sets `APP_URL` to the repository Pages URL automatically. If you use a custom domain or want to override the detected URL, add a repository variable named `APP_URL` in GitHub and the workflow will use that value instead.
 
 GitHub Pages does not build from your local `storage/database/cms.sqlite` file. The `storage/` directory is gitignored, so the workflow always starts from the committed schema plus SQL migrations on a fresh runner. If localhost and Pages drift after editing content in the admin UI, the missing piece is usually a migration or other tracked data update that mirrors those content changes into the repository.
+
+## Running Markdown Import
+
+The admin `Import` screen turns one markdown document into any number of pages and posts. A document like this creates two published posts in a single import:
+
+```md
+---
+type: posts
+status: publish
+---
+
+# First Announcement
+
+Body of the first post.
+
+---
+
+# Second Announcement
+
+Body of the second post.
+```
+
+Items are separated by a `---` line with an empty line before and after it. Separator lines inside fenced code blocks are ignored, so code samples survive the split.
+
+### Top-matter
+
+The optional opening block between `---` fences applies to the whole document:
+
+- `type` sets the document shape: `pages`, `posts`, or `mix`.
+- `status` sets a shared status: `publish` or `draft`.
+- `groups` declares reusable tag and keyword lists that items reference later.
+- `default-*` properties fill in any metadata key an item leaves out, for example `default-type`, `default-title`, `default-description`, `default-tags`, `default-keywords`, and `default-status`.
+
+### Per-item metadata
+
+In a `mix` document, each item can carry quasi-top-matter: a fenced code block whose language identifier is `metadata`, holding `key: value` lines.
+
+```md
+    ```metadata
+    title: Getting Started Guide
+    type: page
+    status: publish
+    tags: guide, how-to
+    ```
+```
+
+The metadata block is optional. An item without a `type` uses the previous item's type; the first item without one falls back to `default-type` from the top-matter, and finally to the **Default Content Type** setting on the admin `Settings` screen (`post` on a fresh install).
+
+### Placeholders
+
+Top-matter defaults and metadata values can reference groups and the item body:
+
+- `${groups.news}` expands to the `news` group's tag list, or its keyword list when resolving a keywords value.
+- `${h1[0].text}` expands to the text of the item's first level 1 heading.
+- `${p[0].text}` expands to the text of the item's first paragraph.
+
+A full example:
+
+```md
+---
+type: mix
+groups: {
+ news: {
+  tags: news, announcements
+  keywords: bulletin, update
+ }
+}
+default-type: post
+default-title: ${h1[0].text}
+default-description: ${p[0].text}
+default-tags: ${groups.news}
+default-status: publish
+---
+```
+
+### Import behavior
+
+- Slugs derive from titles. Re-importing a document updates existing items in place instead of duplicating them, so a running markdown file can keep growing and be imported again after each addition.
+- Tags and categories that do not exist yet are created automatically.
+- Keywords are parsed and shown in the import report but are not stored yet; the content model has no keywords column.
+- The **Dry run** option previews what would be created or updated without saving anything.
+
+A ready-to-import proof of concept ships with the CMS at `public/assets/examples/running-markdown.md` and is published with the static build at `/assets/examples/running-markdown.md`. Paste its contents into the `Import` screen, or upload the file, to see a mixed document become two published posts, a page, and a draft.
 
 ## Theme Direction
 

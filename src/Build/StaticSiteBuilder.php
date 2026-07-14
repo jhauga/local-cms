@@ -274,7 +274,7 @@ final class StaticSiteBuilder
             return [];
         }
 
-        $extensions = ['css', 'js', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'avif'];
+        $extensions = ['css', 'js', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'avif', 'md', 'markdown'];
         $assets = [];
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($assetsDir, FilesystemIterator::SKIP_DOTS)

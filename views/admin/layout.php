@@ -34,6 +34,7 @@ declare(strict_types=1);
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'dashboard' ? ' is-active' : '' ?>" href="/admin">Dashboard</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'pages' ? ' is-active' : '' ?>" href="/admin/pages">Pages</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'posts' ? ' is-active' : '' ?>" href="/admin/posts">Posts</a>
+                        <a class="admin-nav-link<?= ($currentSection ?? '') === 'import' ? ' is-active' : '' ?>" href="/admin/import">Import</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'taxonomies' ? ' is-active' : '' ?>" href="/admin/taxonomies">Taxonomies</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'templating' ? ' is-active' : '' ?>" href="/admin/templating">Templating</a>
                         <a class="admin-nav-link<?= ($currentSection ?? '') === 'themes' ? ' is-active' : '' ?>" href="/admin/themes">Themes</a>

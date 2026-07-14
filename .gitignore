@@ -15,3 +15,7 @@ themes/
 # But keep themes relevant to repo
 !themes/local-builder/
 !themes/default/
+
+# Keep application source visible even when a global gitignore
+# excludes directories matching *upport
+!src/Support/

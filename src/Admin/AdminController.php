@@ -14,6 +14,8 @@ use Cms\Security\Session;
 use Cms\Support\Markdown;
 use Cms\Support\MarkdownTemplateCatalog;
 use Cms\Support\PluginCatalog;
+use Cms\Support\RunningMarkdown;
+use Cms\Support\RunningMarkdownImporter;
 use Cms\Support\ThemeCatalog;
 use Cms\Support\ThemeFallbackRegistry;
 use Cms\Support\ThemeFunctionBridge;
@@ -352,6 +354,7 @@ final class AdminController
             'settings' => [
                 'site_name' => (string) ($settings['site_name'] ?? $this->config->get('app.name', 'Local CMS')),
                 'site_tagline' => (string) ($settings['site_tagline'] ?? $this->config->get('app.tagline', 'A simple content studio with WordPress-shaped theme templates.')),
+                'default_content_type' => $this->defaultContentType($settings),
             ],
             'errors' => [],
         ]));
@@ -368,6 +371,7 @@ final class AdminController
         $settings = [
             'site_name' => trim((string) $request->post('site_name', '')),
             'site_tagline' => trim((string) $request->post('site_tagline', '')),
+            'default_content_type' => trim((string) $request->post('default_content_type', 'post')),
         ];
 
         $errors = [];
@@ -378,6 +382,10 @@ final class AdminController
 
         if ($settings['site_name'] === '') {
             $errors[] = 'Site name is required.';
+        }
+
+        if (!in_array($settings['default_content_type'], ['page', 'post'], true)) {
+            $errors[] = 'Default content type must be page or post.';
         }
 
         if ($errors !== []) {
@@ -395,6 +403,95 @@ final class AdminController
         Session::flash('notice', 'Settings updated.');
 
         return Response::redirect('/admin/settings');
+    }
+
+    public function importForm(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        return new Response($this->view->render('import', $this->importViewData('', [], null, false)));
+    }
+
+    public function runImport(Request $request): Response
+    {
+        if (($redirect = $this->requireAuth()) !== null) {
+            return $redirect;
+        }
+
+        $source = trim((string) $request->post('running_markdown', ''));
+        $dryRun = $request->post('dry_run', '0') === '1';
+        $errors = [];
+
+        if (!$this->validateCsrf($request)) {
+            return new Response($this->view->render('import', $this->importViewData($source, ['Invalid security token.'], null, $dryRun)), 419);
+        }
+
+        if ($request->hasFile('running_markdown_file')) {
+            $file = (array) $request->file('running_markdown_file');
+            $tmpPath = (string) ($file['tmp_name'] ?? '');
+            $contents = $tmpPath !== '' && is_uploaded_file($tmpPath) ? file_get_contents($tmpPath) : false;
+
+            if ($contents === false) {
+                $errors[] = 'The uploaded file could not be read.';
+            } else {
+                $source = $contents;
+            }
+        }
+
+        if ($errors === [] && trim($source) === '') {
+            $errors[] = 'Paste a running markdown document or choose a markdown file to import.';
+        }
+
+        if ($errors !== []) {
+            return new Response($this->view->render('import', $this->importViewData($source, $errors, null, $dryRun)), 422);
+        }
+
+        $settings = $this->repository->getSettings();
+        $parsed = RunningMarkdown::parse($source, $this->defaultContentType($settings));
+
+        if ($parsed['errors'] !== []) {
+            return new Response($this->view->render('import', $this->importViewData($source, $parsed['errors'], null, $dryRun, $parsed['warnings'])), 422);
+        }
+
+        if ($dryRun) {
+            $preview = [
+                'created' => 0,
+                'updated' => 0,
+                'items' => [],
+                'warnings' => $parsed['warnings'],
+            ];
+
+            foreach ($parsed['items'] as $item) {
+                $slug = $this->slugify((string) $item['title']);
+                $action = $this->repository->slugExists((string) $item['type'], $slug) ? 'updated' : 'created';
+                $preview[$action] += 1;
+                $preview['items'][] = [
+                    'title' => (string) $item['title'],
+                    'slug' => $slug,
+                    'type' => (string) $item['type'],
+                    'status' => (string) $item['status'],
+                    'tags' => (array) $item['tags'],
+                    'categories' => (array) $item['categories'],
+                    'keywords' => (array) $item['keywords'],
+                    'action' => $action,
+                ];
+            }
+
+            return new Response($this->view->render('import', $this->importViewData($source, [], $preview, true)));
+        }
+
+        $importer = new RunningMarkdownImporter($this->repository);
+        $report = $importer->import($parsed, (int) ($this->auth->user()['id'] ?? 0));
+
+        Session::flash('notice', sprintf(
+            'Running markdown imported: %d created, %d updated.',
+            $report['created'],
+            $report['updated']
+        ));
+
+        return new Response($this->view->render('import', $this->importViewData('', [], $report, false)));
     }
 
     public function templatingForm(Request $request): Response
@@ -1022,6 +1119,30 @@ final class AdminController
             'csrfToken' => Csrf::token(),
             'clientConverterEnabled' => (bool) $this->config->get('app.application.content.clientConverter', false),
         ], $data);
+    }
+
+    private function defaultContentType(array $settings): string
+    {
+        $type = (string) ($settings['default_content_type'] ?? 'post');
+
+        return in_array($type, ['page', 'post'], true) ? $type : 'post';
+    }
+
+    private function importViewData(string $source, array $errors, ?array $report, bool $dryRun, array $warnings = []): array
+    {
+        if ($report !== null) {
+            $warnings = array_merge($warnings, $report['warnings']);
+        }
+
+        return $this->baseData([
+            'pageTitle' => 'Import',
+            'currentSection' => 'import',
+            'source' => $source,
+            'errors' => $errors,
+            'warnings' => array_values(array_unique($warnings)),
+            'report' => $report,
+            'dryRun' => $dryRun,
+        ]);
     }
 
     private function templatingViewData(array $templates, array $errors): array
